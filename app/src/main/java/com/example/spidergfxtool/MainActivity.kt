@@ -1,6 +1,7 @@
 package com.example.spidergfxtool
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
@@ -20,12 +21,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        GfxBackendManager.initShizukuListener(this)
+        // SAFE INIT: Prevents crash if Shizuku binder is unreachable on certain devices
+        try {
+            GfxBackendManager.initShizukuListener(this)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Shizuku initialization failed", Toast.LENGTH_LONG).show()
+        }
+        
         AudioPlayerManager.playIntroMusic(this)
 
         setContent {
+            // Check status on launch and show Toast if disconnected instead of crashing
             LaunchedEffect(Unit) {
-                GfxBackendManager.checkAndRefreshStatus()
+                try {
+                    if (!GfxBackendManager.checkAndRefreshStatus()) {
+                        Toast.makeText(this@MainActivity, "Shizuku not running. Please open Shizuku app.", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "Shizuku Connection Error", Toast.LENGTH_SHORT).show()
+                }
             }
 
             SpiderGFXToolTheme {
@@ -41,13 +55,23 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        GfxBackendManager.checkAndRefreshStatus()
+        // Safely refresh status when app returns to foreground
+        try {
+            GfxBackendManager.checkAndRefreshStatus()
+        } catch (e: Exception) {
+            // Silently handle background status refresh errors
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        GfxBackendManager.destroy()
-        AudioPlayerManager.stopAndRelease()
+        // Ensure resources are released safely
+        try {
+            GfxBackendManager.destroy()
+            AudioPlayerManager.stopAndRelease()
+        } catch (e: Exception) {
+            // Ignore destruction errors
+        }
     }
 }
 

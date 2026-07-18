@@ -36,6 +36,7 @@ import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.R
 import rikka.shizuku.Shizuku
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 data class PubgVersion(val name: String, val packageName: String)
@@ -43,7 +44,7 @@ data class PubgVersion(val name: String, val packageName: String)
 val pubgVersions = listOf(
     PubgVersion("Global", "com.tencent.ig"),
     PubgVersion("Korea", "com.pubg.krmobile"),
-    PubgVersion("Taiwan", "com.rekoo.pubgm"),
+    PubgVersion("Taiwan", "com.repubg.imobile"),
     PubgVersion("Vietnam", "com.vng.pubgmobile"),
     PubgVersion("BGMI", "com.pubg.imobile")
 )
@@ -56,6 +57,99 @@ fun GfxDashboardScreen() {
     var isProcessing by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
     var selectedVersion by remember { mutableStateOf(pubgVersions[0]) }
+    var is120FpsEnabled by remember { mutableStateOf(false) }
+    var isLagFixEnabled by remember { mutableStateOf(false) }
+
+    // --- MAPPED ACTION HANDLERS (State-Only) ---
+    
+    val onVersionSelected: (PubgVersion) -> Unit = { version ->
+        selectedVersion = version
+        statusText = "[SYSTEM] Selected Version: ${version.name}"
+    }
+
+    val on120FpsClick: () -> Unit = {
+        if (!isConnected) {
+            Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
+        } else {
+            scope.launch {
+                isProcessing = true
+                try {
+                    statusText = "[SYSTEM] Initializing 120 FPS for ${selectedVersion.name}..."
+                    statusText += "\n[NETWORK] Downloading Tweaks from GitHub..."
+                    val url120fps = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/refs/heads/main/v2.0/120FPS.zip"
+                    
+                    GfxBackendManager.downloadGfxZip(context, url120fps).onSuccess { zip ->
+                        statusText += "\n[DECRYPT] Extracting Configuration..."
+                        val cacheDir = context.externalCacheDir ?: throw Exception("Cache unavailable")
+                        val unzippedDir = File(cacheDir, "extracted_files")
+                        
+                        GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
+                            statusText += "\n[SHIZUKU] Replacing Game Configs..."
+                            GfxBackendManager.applyGfx(folder, selectedVersion.packageName).onSuccess { 
+                                statusText += "\n[SUCCESS] Optimization Successfully Applied!"
+                                Toast.makeText(context, "120 FPS Applied Successfully!", Toast.LENGTH_LONG).show() 
+                            }.onFailure { 
+                                statusText += "\n[ERROR] Injection Failed"
+                                Toast.makeText(context, "Apply failed", Toast.LENGTH_SHORT).show() 
+                            }
+                        }.onFailure { 
+                            statusText += "\n[ERROR] Extraction Failed"
+                        }
+                    }.onFailure { 
+                        statusText += "\n[ERROR] Download Interrupted"
+                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show() 
+                    }
+                } catch (e: Exception) {
+                    statusText += "\n[CRITICAL] Error: ${e.message}"
+                } finally {
+                    isProcessing = false
+                }
+            }
+        }
+    }
+
+    val onLagFixClick: () -> Unit = {
+        if (!isConnected) {
+            Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
+        } else {
+            scope.launch {
+                isProcessing = true
+                try {
+                    statusText = "[SYSTEM] Applying Ultra Lag Fix for ${selectedVersion.name}..."
+                    statusText += "\n[NETWORK] Downloading Lag Fix Pack from GitHub..."
+                    val urlLagFix = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/refs/heads/main/v2.0/LAGFIX.zip"
+                    
+                    GfxBackendManager.downloadGfxZip(context, urlLagFix).onSuccess { zip ->
+                        statusText += "\n[DECRYPT] Processing Optimization Streams..."
+                        val cacheDir = context.externalCacheDir ?: throw Exception("Cache unavailable")
+                        val unzippedDir = File(cacheDir, "extracted_files_lagfix")
+                        
+                        GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
+                            statusText += "\n[SHIZUKU] Injecting Active.sav to SaveGames..."
+                            GfxBackendManager.applyGfx(folder, selectedVersion.packageName).onSuccess { 
+                                statusText += "\n[SUCCESS] Optimization Successfully Applied!"
+                                Toast.makeText(context, "Lag Fix Applied Successfully!", Toast.LENGTH_LONG).show() 
+                            }.onFailure { 
+                                statusText += "\n[ERROR] Replacement Failed"
+                                Toast.makeText(context, "Apply failed", Toast.LENGTH_SHORT).show() 
+                            }
+                        }.onFailure { 
+                            statusText += "\n[ERROR] Data Extraction Error"
+                        }
+                    }.onFailure { 
+                        statusText += "\n[ERROR] Repository Access Failed"
+                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    statusText += "\n[CRITICAL] Execution Error: ${e.message}"
+                } finally {
+                    isProcessing = false
+                }
+            }
+        }
+    }
+
+    // --- END HANDLERS ---
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         GfxBackendManager.checkAndRefreshStatus()
@@ -96,7 +190,6 @@ fun GfxDashboardScreen() {
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Dashboard Header Branding
                 Image(
                     painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                     contentDescription = "Spider Logo",
@@ -129,14 +222,12 @@ fun GfxDashboardScreen() {
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // Version Selector Grid
                 VersionSelector(
                     selectedVersion = selectedVersion,
-                    onVersionSelected = { selectedVersion = it }
+                    onVersionSelected = onVersionSelected
                 )
             }
 
-            // Main Action Area with Web/Mask Animation
             Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f)) {
                 if (!isProcessing) {
                     MorphingWebMask(infiniteTransition)
@@ -168,45 +259,20 @@ fun GfxDashboardScreen() {
                         }
                     }
                 } else {
-                    UnlockButton(enabled = isConnected, alphaPulse = neonAlpha, onClick = {
-                        if (!isConnected) {
-                            Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
-                        } else {
-                            scope.launch {
-                                isProcessing = true
-                                statusText = "[SYSTEM] Initiating Cyber Security Bypass..."
-                                kotlinx.coroutines.delay(1000)
-                                
-                                val extCache = context.externalCacheDir ?: File("/sdcard/Android/data/${context.packageName}/cache")
-                                val unzippedDir = File(extCache, "extracted_files")
-                                
-                                statusText += "\n[DOWNLOAD] Pulling Node Stream from GitHub..."
-                                GfxBackendManager.downloadGfxZip(context).onSuccess { zip ->
-                                    statusText += "\n[DECRYPT] Validating PUBG 4.5 Configuration Structure..."
-                                    kotlinx.coroutines.delay(800)
-                                    
-                                    GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
-                                        statusText += "\n[SYSTEM] Injecting GFX Patches to ${selectedVersion.name}..."
-                                        GfxBackendManager.applyGfx(folder, selectedVersion.packageName).onSuccess { 
-                                            statusText += "\n[SUCCESS] ${selectedVersion.name} Stream Patched Successfully!"
-                                            kotlinx.coroutines.delay(1500)
-                                            Toast.makeText(context, it, Toast.LENGTH_LONG).show() 
-                                        }.onFailure { 
-                                            statusText += "\n[ERROR] Injection Failed"
-                                            Toast.makeText(context, "Apply failed", Toast.LENGTH_SHORT).show() 
-                                        }
-                                    }.onFailure { 
-                                        statusText += "\n[ERROR] Decryption Error"
-                                        Toast.makeText(context, "Extract failed", Toast.LENGTH_SHORT).show() 
-                                    }
-                                }.onFailure { 
-                                    statusText += "\n[ERROR] Download Stream Interrupted"
-                                    Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show() 
-                                }
-                                isProcessing = false
-                            }
-                        }
-                    })
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        UnlockButton(
+                            text = "120 FPS\nUNLOCKER",
+                            enabled = isConnected, 
+                            alphaPulse = neonAlpha, 
+                            onClick = on120FpsClick
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        // Mapped "Activate Lag Fix" Button
+                        LagFixButton(
+                            enabled = isConnected,
+                            onClick = onLagFixClick
+                        )
+                    }
                 }
             }
 
@@ -232,7 +298,6 @@ fun MorphingWebMask(infiniteTransition: InfiniteTransition) {
 
     Canvas(modifier = Modifier.size(300.dp).scale(scale).alpha(0.3f)) {
         val center = Offset(size.width / 2, size.height / 2)
-        // Web Lines
         for (i in 0 until 8) {
             val angle = (i * 45).toDouble() * Math.PI / 180
             drawLine(
@@ -245,7 +310,6 @@ fun MorphingWebMask(infiniteTransition: InfiniteTransition) {
                 strokeWidth = 2f
             )
         }
-        // Morphing Mask Shape (Simplified silhouette)
         val path = Path()
         val width = size.width * (0.3f + 0.1f * morph)
         val height = size.height * (0.4f - 0.1f * morph)
@@ -255,19 +319,37 @@ fun MorphingWebMask(infiniteTransition: InfiniteTransition) {
 }
 
 @Composable
-fun UnlockButton(enabled: Boolean, alphaPulse: Float, onClick: () -> Unit) {
+fun UnlockButton(text: String, enabled: Boolean, alphaPulse: Float, onClick: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "Glow")
     val glowScale by infiniteTransition.animateFloat(initialValue = 1f, targetValue = 1.05f, animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "Glow")
     val alpha by animateFloatAsState(if (enabled) alphaPulse else 0.5f, label = "A")
 
     Box(
-        modifier = Modifier.size(240.dp).scale(if (enabled) glowScale else 1f).alpha(alpha)
+        modifier = Modifier.size(200.dp).scale(if (enabled) glowScale else 1f).alpha(alpha)
             .shadow(if (enabled) 30.dp else 0.dp, CircleShape, spotColor = Color.Blue)
             .clip(CircleShape).background(if (enabled) Brush.linearGradient(listOf(Color(0xFFFF3131), Color(0xFF3131FF))) else Brush.linearGradient(listOf(Color.Gray, Color.DarkGray)))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text("120 FPS\nUNLOCKER", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, lineHeight = 30.sp)
+        Text(text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, lineHeight = 26.sp)
+    }
+}
+
+@Composable
+fun LagFixButton(enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth(0.7f)
+            .height(50.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        color = if (enabled) Color(0xFFFF3131).copy(alpha = 0.2f) else Color.DarkGray.copy(alpha = 0.2f),
+        border = androidx.compose.foundation.BorderStroke(2.dp, if (enabled) Color(0xFFFF3131) else Color.Gray),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text("ACTIVATE LAG FIX", color = if (enabled) Color.White else Color.Gray, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        }
     }
 }
 

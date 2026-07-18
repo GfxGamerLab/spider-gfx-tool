@@ -25,8 +25,6 @@ object GfxBackendManager {
         .followSslRedirects(true)
         .build()
 
-    private const val GFX_URL = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/main/120FPS.zip"
-    
     // Dynamic destination path generation
     private fun getDestPath(packageName: String): String {
         return "${Environment.getExternalStorageDirectory()}/Android/data/$packageName/"
@@ -102,19 +100,21 @@ object GfxBackendManager {
     /**
      * Bulletproof Download Function - Uses getExternalCacheDir() for Shizuku access
      */
-    suspend fun downloadGfxZip(context: Context): Result<File> = withContext(Dispatchers.IO) {
+    suspend fun downloadGfxZip(context: Context, downloadUrl: String): Result<File> = withContext(Dispatchers.IO) {
         val extCache = context.externalCacheDir ?: return@withContext Result.failure(IOException("External cache unavailable"))
-        val targetFile = File(extCache, "120FPS.zip")
-        val extractedDir = File(extCache, "extracted_files")
+        val fileName = if (downloadUrl.contains("LAGFIX")) "LAGFIX.zip" else "120FPS.zip"
+        val targetFile = File(extCache, fileName)
+        val extractedDirName = if (downloadUrl.contains("LAGFIX")) "extracted_files_lagfix" else "extracted_files"
+        val extractedDir = File(extCache, extractedDirName)
         
         // SAFE CACHE CLEAN-UP: Always start fresh to avoid corrupt streams
         try {
             if (targetFile.exists()) {
-                Log.d("GFX_DOWNLOAD", "Cleaning up old zip...")
+                Log.d("GFX_DOWNLOAD", "Cleaning up old zip: $fileName")
                 targetFile.delete()
             }
             if (extractedDir.exists()) {
-                Log.d("GFX_DOWNLOAD", "Cleaning up old extraction cache...")
+                Log.d("GFX_DOWNLOAD", "Cleaning up old extraction cache: $extractedDirName")
                 extractedDir.deleteRecursively()
             }
         } catch (e: Exception) {
@@ -122,12 +122,12 @@ object GfxBackendManager {
         }
 
         val request = Request.Builder()
-            .url(GFX_URL)
+            .url(downloadUrl)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
             .build()
 
         try {
-            Log.d("GFX_DOWNLOAD", "Starting download from: $GFX_URL")
+            Log.d("GFX_DOWNLOAD", "Starting download from: $downloadUrl")
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP Error: ${response.code}"))
                 val body = response.body ?: throw IOException("Empty response body")
