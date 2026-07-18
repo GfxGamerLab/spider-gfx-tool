@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -35,6 +36,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.R
 import rikka.shizuku.Shizuku
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -59,12 +61,63 @@ fun GfxDashboardScreen() {
     var selectedVersion by remember { mutableStateOf(pubgVersions[0]) }
     var is120FpsEnabled by remember { mutableStateOf(false) }
     var isLagFixEnabled by remember { mutableStateOf(false) }
+    
+    // Android Tweaks State
+    var performanceMode by remember { mutableStateOf(false) }
+    var gpuComposition by remember { mutableStateOf(false) }
+    var touchResponse by remember { mutableStateOf(false) }
 
-    // --- MAPPED ACTION HANDLERS (State-Only) ---
+    // --- MAPPED ACTION HANDLERS (State & Shell Integration) ---
     
     val onVersionSelected: (PubgVersion) -> Unit = { version ->
         selectedVersion = version
         statusText = "[SYSTEM] Selected Version: ${version.name}"
+    }
+
+    val onTweakToggle: (String, Boolean, (Boolean) -> Unit) -> Unit = { name, newState, stateUpdate ->
+        stateUpdate(newState)
+        scope.launch {
+            val command = when(name) {
+                "Fixed Performance Mode" -> if (newState) "settings put global power_save_mode_trigger 0 && settings put global low_power 0" else "settings put global power_save_mode_trigger 15"
+                "Force GPU Composition" -> if (newState) "setprop debug.sf.hw 1 && setprop debug.egl.hw 1" else "setprop debug.sf.hw 0 && setprop debug.egl.hw 0"
+                "Instant Touch Response" -> if (newState) "settings put system pointer_speed 7" else "settings put system pointer_speed 0"
+                else -> ""
+            }
+            
+            statusText = "[PROCESS] Toggling $name: ${if (newState) "ON" else "OFF"}..."
+            GfxBackendManager.runShell(command).onSuccess {
+                statusText += "\n[SUCCESS] $name logic applied."
+            }.onFailure { e ->
+                statusText += "\n[ERROR] $name failed: ${e.message}"
+            }
+        }
+    }
+    
+    val onDeepCachePurge: () -> Unit = {
+        scope.launch {
+            if (!isConnected) {
+                Toast.makeText(context, "Shizuku disconnected", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            isProcessing = true
+            statusText = "[SYSTEM] Initiating Deep Cache Purge..."
+            
+            // Step 1: Trim Caches
+            statusText += "\n[PROCESS] Trimming app caches..."
+            GfxBackendManager.runShell("pm trim-caches 4096G").onSuccess {
+                delay(800)
+                statusText += "\n[PROCESS] Optimizing DEX/ART buffers..."
+                // Step 2: Background Dexopt (Common speedup)
+                GfxBackendManager.runShell("cmd package bg-dexopt-job").onSuccess {
+                    delay(1000)
+                    statusText += "\n[SUCCESS] Cache Purge & System Re-indexing Complete!"
+                    Toast.makeText(context, "System Optimized!", Toast.LENGTH_SHORT).show()
+                }
+            }.onFailure { e ->
+                statusText += "\n[ERROR] Optimization interrupted: ${e.message}"
+            }
+            isProcessing = false
+        }
     }
 
     val on120FpsClick: () -> Unit = {
@@ -184,10 +237,13 @@ fun GfxDashboardScreen() {
     )
 
     Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(color1, color2, Color.Black)))) {
+        val scrollState = rememberScrollState()
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(
@@ -226,9 +282,46 @@ fun GfxDashboardScreen() {
                     selectedVersion = selectedVersion,
                     onVersionSelected = onVersionSelected
                 )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Restored Main Action Buttons
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    UnlockButton(
+                        text = "120 FPS\nUNLOCKER",
+                        enabled = isConnected, 
+                        alphaPulse = neonAlpha, 
+                        onClick = on120FpsClick
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    LagFixButton(
+                        enabled = isConnected,
+                        onClick = onLagFixClick
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // Android Tweaks UI Section
+                AndroidTweaksSection(
+                    performanceMode = performanceMode,
+                    onPerformanceModeChange = { onTweakToggle("Fixed Performance Mode", it) { performanceMode = it } },
+                    gpuComposition = gpuComposition,
+                    onGpuCompositionChange = { onTweakToggle("Force GPU Composition", it) { gpuComposition = it } },
+                    touchResponse = touchResponse,
+                    onTouchResponseChange = { onTweakToggle("Instant Touch Response", it) { touchResponse = it } },
+                    onDeepCachePurge = onDeepCachePurge
+                )
             }
 
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Box(
+                contentAlignment = Alignment.Center, 
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (isProcessing) 220.dp else 120.dp) // Dynamic height for web/terminal
+            ) {
                 if (!isProcessing) {
                     MorphingWebMask(infiniteTransition)
                 }
@@ -237,8 +330,7 @@ fun GfxDashboardScreen() {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(220.dp)
-                            .padding(16.dp)
+                            .fillMaxHeight()
                             .border(1.dp, Color(0xFFFF3131), RoundedCornerShape(8.dp)),
                         colors = CardDefaults.cardColors(containerColor = Color.Black)
                     ) {
@@ -258,23 +350,10 @@ fun GfxDashboardScreen() {
                             )
                         }
                     }
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        UnlockButton(
-                            text = "120 FPS\nUNLOCKER",
-                            enabled = isConnected, 
-                            alphaPulse = neonAlpha, 
-                            onClick = on120FpsClick
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        // Mapped "Activate Lag Fix" Button
-                        LagFixButton(
-                            enabled = isConnected,
-                            onClick = onLagFixClick
-                        )
-                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 SocialIcon("YouTube", "https://youtube.com/@gfxgamerlab_1", Color.Red)
@@ -332,6 +411,85 @@ fun UnlockButton(text: String, enabled: Boolean, alphaPulse: Float, onClick: () 
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, lineHeight = 26.sp)
+    }
+}
+
+@Composable
+fun AndroidTweaksSection(
+    performanceMode: Boolean,
+    onPerformanceModeChange: (Boolean) -> Unit,
+    gpuComposition: Boolean,
+    onGpuCompositionChange: (Boolean) -> Unit,
+    touchResponse: Boolean,
+    onTouchResponseChange: (Boolean) -> Unit,
+    onDeepCachePurge: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "SYSTEM PERFORMANCE ENGINE",
+            color = Color(0xFFFF3131),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = Color(0xFFFF3131).copy(alpha = 0.2f)),
+            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.4f)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                TweakSwitchRow("Fixed Performance Mode", performanceMode, onPerformanceModeChange)
+                TweakSwitchRow("Force GPU Composition", gpuComposition, onGpuCompositionChange)
+                TweakSwitchRow("Instant Touch Response", touchResponse, onTouchResponseChange)
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Button(
+                    onClick = onDeepCachePurge,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .shadow(10.dp, RoundedCornerShape(8.dp), spotColor = Color(0xFFFF3131)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3131)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("DEEP CACHE PURGE", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TweakSwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.9f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Color(0xFFFF3131),
+                uncheckedThumbColor = Color.Gray,
+                uncheckedTrackColor = Color.DarkGray
+            )
+        )
     }
 }
 

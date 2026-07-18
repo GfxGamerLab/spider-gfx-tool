@@ -257,6 +257,47 @@ object GfxBackendManager {
     }
 
     /**
+     * Executes a shell command via Shizuku safely.
+     */
+    suspend fun runShell(command: String): Result<String> = withContext(Dispatchers.IO) {
+        Log.d("GFX_SHELL", "Executing: $command")
+        try {
+            val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
+            val newProcessMethod = shizukuClass.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            newProcessMethod.isAccessible = true
+            
+            val process = newProcessMethod.invoke(
+                null, 
+                arrayOf("sh", "-c", command), 
+                null, 
+                null
+            ) as java.lang.Process
+
+            val errReader = BufferedReader(InputStreamReader(process.errorStream))
+            val error = StringBuilder()
+            var line: String?
+            while (errReader.readLine().also { line = it } != null) {
+                error.append(line).append("\n")
+            }
+
+            val exitCode = process.waitFor()
+
+            if (exitCode == 0) {
+                Result.success("Success")
+            } else {
+                Result.failure(Exception("Shell error (code $exitCode): $error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Uses Shizuku to check if the target directory exists.
      */
     private fun verifyInstallation(path: String): Boolean {

@@ -41,11 +41,13 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
     
     val infiniteTransition = rememberInfiniteTransition(label = "SpiderAnim")
     
-    // Background Creeping Spiders Animation
     val spiderMove by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(8000, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
         label = "SpiderMove"
     )
 
@@ -55,18 +57,17 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
             .background(Brush.verticalGradient(listOf(Color.Black, Color(0xFF1A0000), Color.Black))),
         contentAlignment = Alignment.Center
     ) {
-        // Dynamic Creeping Spiders Layer
-        Box(Modifier.fillMaxSize()) {
+        // Background Spiders
+        Box(modifier = Modifier.fillMaxSize()) {
             repeat(4) { index ->
+                val alignment = when(index) {
+                    0 -> Alignment.TopStart
+                    1 -> Alignment.TopEnd
+                    2 -> Alignment.BottomStart
+                    else -> Alignment.BottomEnd
+                }
                 CreepingSpider(
-                    modifier = Modifier.align(
-                        when(index) {
-                            0 -> Alignment.TopStart
-                            1 -> Alignment.TopEnd
-                            2 -> Alignment.BottomStart
-                            else -> Alignment.BottomEnd
-                        }
-                    ),
+                    modifier = Modifier.align(alignment),
                     progress = spiderMove,
                     index = index
                 )
@@ -77,12 +78,15 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            // Pulsing Logo
             val pulse by infiniteTransition.animateFloat(
                 initialValue = 1f, targetValue = 1.15f,
-                animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1500),
+                    repeatMode = RepeatMode.Reverse
+                ),
                 label = "Pulse"
             )
 
@@ -91,19 +95,32 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                     .size(120.dp)
                     .scale(pulse)
                     .shadow(30.dp, RoundedCornerShape(60.dp), spotColor = Color.Red)
-                    .background(Brush.radialGradient(listOf(Color(0xFFFF3131), Color(0xFF8B0000))), shape = RoundedCornerShape(60.dp)),
+                    .background(
+                        brush = Brush.radialGradient(listOf(Color(0xFFFF3131), Color(0xFF8B0000))), 
+                        shape = RoundedCornerShape(60.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Text("SPIDER", color = Color.White, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                Text(
+                    text = "SPIDER", 
+                    color = Color.White, 
+                    fontWeight = FontWeight.Black, 
+                    fontSize = 24.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            Text("KEY ACTIVATION", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 6.sp)
+            Text(
+                text = "KEY ACTIVATION", 
+                color = Color.White, 
+                fontSize = 26.sp, 
+                fontWeight = FontWeight.ExtraBold, 
+                letterSpacing = 6.sp
+            )
             
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Cyberpunk Key Bracket
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -111,16 +128,15 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                     .background(Color.Black)
                     .border(2.dp, Color(0xFFFF0033))
             ) {
-                // Side accents for hacker feel
                 Box(modifier = Modifier.fillMaxHeight().width(6.dp).background(Color(0xFFFF0033)).align(Alignment.CenterStart))
                 Box(modifier = Modifier.fillMaxHeight().width(6.dp).background(Color(0xFFFF0033)).align(Alignment.CenterEnd))
 
                 TextField(
                     value = keyInput,
-                    onValueChange = { keyInput = it.uppercase() },
+                    onValueChange = { newValue -> keyInput = newValue.uppercase() },
                     placeholder = { 
                         Text(
-                            "SECURE ACCESS KEY", 
+                            text = "SECURE ACCESS KEY", 
                             color = Color(0xFFFF0033).copy(alpha = 0.4f),
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 2.sp
@@ -149,29 +165,22 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
             Button(
                 onClick = {
                     if (keyInput == "SPIDERGFXTOOL") {
-                        // 1. Stop Intro Music
                         AudioPlayerManager.stopAndRelease()
-                        
-                        // 2. Play Success Sound
                         val successPlayer = MediaPlayer.create(context, R.raw.correct_key)
                         successPlayer?.apply {
-                            setOnCompletionListener { it.release() }
+                            setOnCompletionListener { mp -> mp.release() }
                             start()
                         }
-                        
-                        // 3. Delayed Transition (3.5s) for cinematic experience
                         scope.launch {
                             delay(3500)
                             onActivated()
                         }
                     } else {
-                        // Play Error Sound
-                        val errorPlayer = android.media.MediaPlayer.create(context, com.example.spidergfxtool.R.raw.wrong_key)
+                        val errorPlayer = MediaPlayer.create(context, R.raw.wrong_key)
                         errorPlayer?.apply {
                             setOnCompletionListener { mp -> mp.release() }
                             start()
                         }
-
                         Toast.makeText(context, "Invalid Key!", Toast.LENGTH_SHORT).show()
                     }
                 },
@@ -179,7 +188,11 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3131)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("ACTIVATE TOOL", fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                Text(
+                    text = "ACTIVATE TOOL", 
+                    fontWeight = FontWeight.Black, 
+                    letterSpacing = 2.sp
+                )
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -190,14 +203,18 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/gfxgamerlab_1")))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/gfxgamerlab_1"))
+                    context.startActivity(intent)
                 }
             )
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Social Row
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Row(
+                modifier = Modifier.fillMaxWidth(), 
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 SocialIcon("YT", "https://youtube.com/@gfxgamerlab_1", Color.Red)
                 SocialIcon("TG", "https://t.me/gfxgamerlab", Color(0xFF24A1DE))
                 SocialIcon("WA", "https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l", Color(0xFF25D366))
@@ -208,7 +225,6 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
 
 @Composable
 fun CreepingSpider(modifier: Modifier, progress: Float, index: Int) {
-    val alpha = 0.2f
     val offset = when(index) {
         0 -> Offset(100f * progress, 100f * progress)
         1 -> Offset(-100f * progress, 100f * progress)
@@ -216,12 +232,16 @@ fun CreepingSpider(modifier: Modifier, progress: Float, index: Int) {
         else -> Offset(-100f * progress, -100f * progress)
     }
     
-    Canvas(modifier = modifier.size(60.dp).offset(offset.x.dp, offset.y.dp).alpha(alpha)) {
-        drawCircle(Color.Red, radius = 10f) // Simplified spider body
-        // Basic legs
+    Canvas(
+        modifier = modifier
+            .size(60.dp)
+            .offset(offset.x.dp, offset.y.dp)
+            .alpha(0.2f)
+    ) {
+        drawCircle(Color.Red, radius = 10f)
         repeat(4) { i ->
-            drawLine(Color.Red, Offset(0f,0f), Offset(20f, (i-1.5f)*15f), strokeWidth = 2f)
-            drawLine(Color.Red, Offset(0f,0f), Offset(-20f, (i-1.5f)*15f), strokeWidth = 2f)
+            drawLine(Color.Red, Offset(0f, 0f), Offset(20f, (i - 1.5f) * 15f), strokeWidth = 2f)
+            drawLine(Color.Red, Offset(0f, 0f), Offset(-20f, (i - 1.5f) * 15f), strokeWidth = 2f)
         }
     }
 }
