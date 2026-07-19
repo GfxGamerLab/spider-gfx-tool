@@ -164,7 +164,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (keyInput == "SPIDERGFXTOOL") {
+                    if (keyInput == "GFXTOOL") {
                         AudioPlayerManager.stopAndRelease()
                         val successPlayer = MediaPlayer.create(context, R.raw.correct_key)
                         successPlayer?.apply {
