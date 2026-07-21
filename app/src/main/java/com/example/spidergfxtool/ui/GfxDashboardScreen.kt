@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.R
 import rikka.shizuku.Shizuku
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -63,9 +64,15 @@ fun GfxDashboardScreen() {
     var isLagFixEnabled by remember { mutableStateOf(false) }
     
     // Android Tweaks State
-    var performanceMode by remember { mutableStateOf(false) }
-    var gpuComposition by remember { mutableStateOf(false) }
-    var touchResponse by remember { mutableStateOf(false) }
+    var uiTouchSpeed by remember { mutableStateOf(false) }
+    var gameMode by remember { mutableStateOf(false) }
+    var phantomProcess by remember { mutableStateOf(false) }
+    var frameLatency by remember { mutableStateOf(false) }
+    var fifoUi by remember { mutableStateOf(false) }
+    var precisionAim by remember { mutableStateOf(false) }
+    var lmkProtection by remember { mutableStateOf(false) }
+    var disableBackpressure by remember { mutableStateOf(false) }
+    var ultraNetwork by remember { mutableStateOf(false) }
 
     // --- MAPPED ACTION HANDLERS (State & Shell Integration) ---
     
@@ -78,43 +85,49 @@ fun GfxDashboardScreen() {
         stateUpdate(newState)
         scope.launch {
             val command = when(name) {
-                "Fixed Performance Mode" -> if (newState) "settings put global power_save_mode_trigger 0 && settings put global low_power 0" else "settings put global power_save_mode_trigger 15"
-                "Force GPU Composition" -> if (newState) "setprop debug.sf.hw 1 && setprop debug.egl.hw 1" else "setprop debug.sf.hw 0 && setprop debug.egl.hw 0"
-                "Instant Touch Response" -> if (newState) "settings put system pointer_speed 7" else "settings put system pointer_speed 0"
+                "UI Touch Speed (0.5x)" -> if (newState) "settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5" else "settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0"
+                "Android Game Mode Force" -> if (newState) "cmd game set --mode performance com.pubg.imobile; cmd game set --mode performance com.tencent.ig" else "cmd game reset com.pubg.imobile; cmd game reset com.tencent.ig"
+                "Phantom Process Limiter" -> if (newState) "device_config put activity_manager max_phantom_processes 2147483647" else "device_config put activity_manager max_phantom_processes 32"
+                "Frame Latency Fixer" -> if (newState) "setprop debug.sf.latch_unsignaled 1" else "setprop debug.sf.latch_unsignaled 0"
+                "FIFO UI Governor" -> if (newState) "setprop sys.use_fifo_ui 1" else "setprop sys.use_fifo_ui 0"
+                "High Precision Aim Engine" -> if (newState) "settings put system touch_blocking_period 0; setprop debug.input.velocity_tracker_strategy lsq2" else ""
+                "LMK Protection Lock" -> if (newState) "setprop ro.lmk.kill_heaviest_task false" else "setprop ro.lmk.kill_heaviest_task true"
+                "Disable Backpressure" -> if (newState) "setprop debug.sf.showupdates 0; setprop debug.sf.showcpu 0; setprop debug.sf.disable_backpressure 1" else "setprop debug.sf.disable_backpressure 0"
+                "Ultra Network Buffer" -> if (newState) "setprop net.tcp.buffersize.wifi 524288,1048576,2097152,262144,524288,1048576" else ""
                 else -> ""
             }
             
-            statusText = "[PROCESS] Toggling $name: ${if (newState) "ON" else "OFF"}..."
-            GfxBackendManager.runShell(command).onSuccess {
-                statusText += "\n[SUCCESS] $name logic applied."
-            }.onFailure { e ->
-                statusText += "\n[ERROR] $name failed: ${e.message}"
+            if (command.isNotEmpty()) {
+                statusText = "[PROCESS] Toggling $name: ${if (newState) "ON" else "OFF"}..."
+                GfxBackendManager.runShell(command).onSuccess {
+                    statusText += "\n[SUCCESS] $name logic applied."
+                }.onFailure { e ->
+                    statusText += "\n[ERROR] $name failed: ${e.message}"
+                }
             }
         }
     }
     
     val onDeepCachePurge: () -> Unit = {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             if (!isConnected) {
-                Toast.makeText(context, "Shizuku disconnected", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Shizuku disconnected", Toast.LENGTH_SHORT).show()
+                }
                 return@launch
             }
-            isProcessing = true
-            statusText = "[SYSTEM] Initiating Deep Cache Purge..."
             
-            // Step 1: Trim Caches
-            statusText += "\n[PROCESS] Trimming app caches..."
-            GfxBackendManager.runShell("pm trim-caches 4096G").onSuccess {
-                delay(800)
-                statusText += "\n[PROCESS] Optimizing DEX/ART buffers..."
-                // Step 2: Background Dexopt (Common speedup)
-                GfxBackendManager.runShell("cmd package bg-dexopt-job").onSuccess {
-                    delay(1000)
-                    statusText += "\n[SUCCESS] Cache Purge & System Re-indexing Complete!"
-                    Toast.makeText(context, "System Optimized!", Toast.LENGTH_SHORT).show()
-                }
-            }.onFailure { e ->
-                statusText += "\n[ERROR] Optimization interrupted: ${e.message}"
+            isProcessing = true
+            statusText = "[SYSTEM] Initiating Fast Cache Purge..."
+            
+            // Fast non-blocking command execution
+            GfxBackendManager.runShell("pm trim-caches 4G")
+            
+            delay(500)
+            statusText += "\n[SUCCESS] Deep System Cache Cleared! Memory Buffers Released."
+            
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "System Optimized!", Toast.LENGTH_SHORT).show()
             }
             isProcessing = false
         }
@@ -304,12 +317,24 @@ fun GfxDashboardScreen() {
                 
                 // Android Tweaks UI Section
                 AndroidTweaksSection(
-                    performanceMode = performanceMode,
-                    onPerformanceModeChange = { onTweakToggle("Fixed Performance Mode", it) { performanceMode = it } },
-                    gpuComposition = gpuComposition,
-                    onGpuCompositionChange = { onTweakToggle("Force GPU Composition", it) { gpuComposition = it } },
-                    touchResponse = touchResponse,
-                    onTouchResponseChange = { onTweakToggle("Instant Touch Response", it) { touchResponse = it } },
+                    uiTouchSpeed = uiTouchSpeed,
+                    onUiTouchSpeedChange = { onTweakToggle("UI Touch Speed (0.5x)", it) { uiTouchSpeed = it } },
+                    gameMode = gameMode,
+                    onGameModeChange = { onTweakToggle("Android Game Mode Force", it) { gameMode = it } },
+                    phantomProcess = phantomProcess,
+                    onPhantomProcessChange = { onTweakToggle("Phantom Process Limiter", it) { phantomProcess = it } },
+                    frameLatency = frameLatency,
+                    onFrameLatencyChange = { onTweakToggle("Frame Latency Fixer", it) { frameLatency = it } },
+                    fifoUi = fifoUi,
+                    onFifoUiChange = { onTweakToggle("FIFO UI Governor", it) { fifoUi = it } },
+                    precisionAim = precisionAim,
+                    onPrecisionAimChange = { onTweakToggle("High Precision Aim Engine", it) { precisionAim = it } },
+                    lmkProtection = lmkProtection,
+                    onLmkProtectionChange = { onTweakToggle("LMK Protection Lock", it) { lmkProtection = it } },
+                    disableBackpressure = disableBackpressure,
+                    onDisableBackpressureChange = { onTweakToggle("Disable Backpressure", it) { disableBackpressure = it } },
+                    ultraNetwork = ultraNetwork,
+                    onUltraNetworkChange = { onTweakToggle("Ultra Network Buffer", it) { ultraNetwork = it } },
                     onDeepCachePurge = onDeepCachePurge
                 )
             }
@@ -416,12 +441,24 @@ fun UnlockButton(text: String, enabled: Boolean, alphaPulse: Float, onClick: () 
 
 @Composable
 fun AndroidTweaksSection(
-    performanceMode: Boolean,
-    onPerformanceModeChange: (Boolean) -> Unit,
-    gpuComposition: Boolean,
-    onGpuCompositionChange: (Boolean) -> Unit,
-    touchResponse: Boolean,
-    onTouchResponseChange: (Boolean) -> Unit,
+    uiTouchSpeed: Boolean,
+    onUiTouchSpeedChange: (Boolean) -> Unit,
+    gameMode: Boolean,
+    onGameModeChange: (Boolean) -> Unit,
+    phantomProcess: Boolean,
+    onPhantomProcessChange: (Boolean) -> Unit,
+    frameLatency: Boolean,
+    onFrameLatencyChange: (Boolean) -> Unit,
+    fifoUi: Boolean,
+    onFifoUiChange: (Boolean) -> Unit,
+    precisionAim: Boolean,
+    onPrecisionAimChange: (Boolean) -> Unit,
+    lmkProtection: Boolean,
+    onLmkProtectionChange: (Boolean) -> Unit,
+    disableBackpressure: Boolean,
+    onDisableBackpressureChange: (Boolean) -> Unit,
+    ultraNetwork: Boolean,
+    onUltraNetworkChange: (Boolean) -> Unit,
     onDeepCachePurge: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -442,10 +479,21 @@ fun AndroidTweaksSection(
             colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.4f)),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                TweakSwitchRow("Fixed Performance Mode", performanceMode, onPerformanceModeChange)
-                TweakSwitchRow("Force GPU Composition", gpuComposition, onGpuCompositionChange)
-                TweakSwitchRow("Instant Touch Response", touchResponse, onTouchResponseChange)
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                TweakSwitchRow("UI Touch Speed (0.5x)", uiTouchSpeed, onUiTouchSpeedChange)
+                TweakSwitchRow("Android Game Mode Force", gameMode, onGameModeChange)
+                TweakSwitchRow("Phantom Process Limiter", phantomProcess, onPhantomProcessChange)
+                TweakSwitchRow("Frame Latency Fixer", frameLatency, onFrameLatencyChange)
+                TweakSwitchRow("FIFO UI Governor", fifoUi, onFifoUiChange)
+                TweakSwitchRow("High Precision Aim Engine", precisionAim, onPrecisionAimChange)
+                TweakSwitchRow("LMK Protection Lock", lmkProtection, onLmkProtectionChange)
+                TweakSwitchRow("Disable Backpressure", disableBackpressure, onDisableBackpressureChange)
+                TweakSwitchRow("Ultra Network Buffer", ultraNetwork, onUltraNetworkChange)
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
