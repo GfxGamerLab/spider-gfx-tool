@@ -164,8 +164,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (keyInput == "GFXTOOL") {
-                        AudioPlayerManager.stopAndRelease()
+                    if (keyInput == "GAMERLAB") {
                         val successPlayer = MediaPlayer.create(context, R.raw.correct_key)
                         successPlayer?.apply {
                             setOnCompletionListener { mp -> mp.release() }

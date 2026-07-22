@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="#AA000000"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/fpsText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="FPS: 0"
+        android:textColor="#00FF00"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/cpuText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="CPU: 0°C"
+        android:textColor="#FF3131"
+        android:textStyle="bold" />
+
+</LinearLayout>

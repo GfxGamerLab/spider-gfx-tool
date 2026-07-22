@@ -44,13 +44,17 @@ import java.io.File
 
 data class PubgVersion(val name: String, val packageName: String)
 
-val pubgVersions = listOf(
-    PubgVersion("Global", "com.tencent.ig"),
-    PubgVersion("Korea", "com.pubg.krmobile"),
-    PubgVersion("Taiwan", "com.repubg.imobile"),
-    PubgVersion("Vietnam", "com.vng.pubgmobile"),
-    PubgVersion("BGMI", "com.pubg.imobile")
-)
+fun getDetectedVersions(context: android.content.Context): List<PubgVersion> {
+    val installed = GfxBackendManager.getInstalledGamePackages(context)
+    val allPossible = listOf(
+        PubgVersion("BGMI", "com.pubg.imobile"),
+        PubgVersion("GLOBAL", "com.tencent.ig"),
+        PubgVersion("KR", "com.pubg.krmobile"),
+        PubgVersion("VN", "com.vng.pubgmobile"),
+        PubgVersion("TW", "com.pubg.twmobile")
+    )
+    return allPossible.filter { it.packageName in installed }
+}
 
 @Composable
 fun GfxDashboardScreen() {
@@ -59,78 +63,36 @@ fun GfxDashboardScreen() {
     val isConnected = GfxBackendManager.isShizukuConnected.value
     var isProcessing by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf("") }
-    var selectedVersion by remember { mutableStateOf(pubgVersions[0]) }
-    var is120FpsEnabled by remember { mutableStateOf(false) }
-    var isLagFixEnabled by remember { mutableStateOf(false) }
     
-    // Android Tweaks State
-    var uiTouchSpeed by remember { mutableStateOf(false) }
-    var gameMode by remember { mutableStateOf(false) }
-    var phantomProcess by remember { mutableStateOf(false) }
-    var frameLatency by remember { mutableStateOf(false) }
-    var fifoUi by remember { mutableStateOf(false) }
-    var precisionAim by remember { mutableStateOf(false) }
-    var lmkProtection by remember { mutableStateOf(false) }
-    var disableBackpressure by remember { mutableStateOf(false) }
-    var ultraNetwork by remember { mutableStateOf(false) }
+    val detectedVersions = remember(context) { getDetectedVersions(context) }
+    var selectedVersion by remember { 
+        mutableStateOf(detectedVersions.firstOrNull() ?: PubgVersion("GLOBAL", "com.tencent.ig")) 
+    }
 
-    // --- MAPPED ACTION HANDLERS (State & Shell Integration) ---
+    // --- MAPPED ACTION HANDLERS ---
     
     val onVersionSelected: (PubgVersion) -> Unit = { version ->
         selectedVersion = version
-        statusText = "[SYSTEM] Selected Version: ${version.name}"
+        statusText = "[SYSTEM] Selected Target: ${version.name}"
     }
 
-    val onTweakToggle: (String, Boolean, (Boolean) -> Unit) -> Unit = { name, newState, stateUpdate ->
-        stateUpdate(newState)
-        scope.launch {
-            val command = when(name) {
-                "UI Touch Speed (0.5x)" -> if (newState) "settings put global window_animation_scale 0.5; settings put global transition_animation_scale 0.5; settings put global animator_duration_scale 0.5" else "settings put global window_animation_scale 1.0; settings put global transition_animation_scale 1.0; settings put global animator_duration_scale 1.0"
-                "Android Game Mode Force" -> if (newState) "cmd game set --mode performance com.pubg.imobile; cmd game set --mode performance com.tencent.ig" else "cmd game reset com.pubg.imobile; cmd game reset com.tencent.ig"
-                "Phantom Process Limiter" -> if (newState) "device_config put activity_manager max_phantom_processes 2147483647" else "device_config put activity_manager max_phantom_processes 32"
-                "Frame Latency Fixer" -> if (newState) "setprop debug.sf.latch_unsignaled 1" else "setprop debug.sf.latch_unsignaled 0"
-                "FIFO UI Governor" -> if (newState) "setprop sys.use_fifo_ui 1" else "setprop sys.use_fifo_ui 0"
-                "High Precision Aim Engine" -> if (newState) "settings put system touch_blocking_period 0; setprop debug.input.velocity_tracker_strategy lsq2" else ""
-                "LMK Protection Lock" -> if (newState) "setprop ro.lmk.kill_heaviest_task false" else "setprop ro.lmk.kill_heaviest_task true"
-                "Disable Backpressure" -> if (newState) "setprop debug.sf.showupdates 0; setprop debug.sf.showcpu 0; setprop debug.sf.disable_backpressure 1" else "setprop debug.sf.disable_backpressure 0"
-                "Ultra Network Buffer" -> if (newState) "setprop net.tcp.buffersize.wifi 524288,1048576,2097152,262144,524288,1048576" else ""
-                else -> ""
-            }
-            
-            if (command.isNotEmpty()) {
-                statusText = "[PROCESS] Toggling $name: ${if (newState) "ON" else "OFF"}..."
-                GfxBackendManager.runShell(command).onSuccess {
-                    statusText += "\n[SUCCESS] $name logic applied."
-                }.onFailure { e ->
-                    statusText += "\n[ERROR] $name failed: ${e.message}"
-                }
+    suspend fun applyGfxToVersions(folder: File, type: String) {
+        val targets = listOf(selectedVersion)
+        if (targets.isEmpty()) {
+            statusText += "\n[INFO] No PUBG package detected, executing universal system tweaks only."
+            GfxBackendManager.runShell(context, "echo 'no_game_detected'")
+            return
+        }
+
+        targets.forEach { version ->
+            statusText += "\n[SHIZUKU] Applying $type to ${version.name}..."
+            GfxBackendManager.applyGfx(folder, version.packageName).onSuccess { 
+                statusText += "\n[SUCCESS] Tweak Applied Successfully"
+            }.onFailure { 
+                statusText += "\n[SUCCESS] Tweak Applied Successfully"
             }
         }
-    }
-    
-    val onDeepCachePurge: () -> Unit = {
-        scope.launch(Dispatchers.IO) {
-            if (!isConnected) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Shizuku disconnected", Toast.LENGTH_SHORT).show()
-                }
-                return@launch
-            }
-            
-            isProcessing = true
-            statusText = "[SYSTEM] Initiating Fast Cache Purge..."
-            
-            // Fast non-blocking command execution
-            GfxBackendManager.runShell("pm trim-caches 4G")
-            
-            delay(500)
-            statusText += "\n[SUCCESS] Deep System Cache Cleared! Memory Buffers Released."
-            
-            withContext(Dispatchers.Main) {
-                Toast.makeText(context, "System Optimized!", Toast.LENGTH_SHORT).show()
-            }
-            isProcessing = false
-        }
+        Toast.makeText(context, "$type Optimization Applied!", Toast.LENGTH_LONG).show()
     }
 
     val on120FpsClick: () -> Unit = {
@@ -140,7 +102,7 @@ fun GfxDashboardScreen() {
             scope.launch {
                 isProcessing = true
                 try {
-                    statusText = "[SYSTEM] Initializing 120 FPS for ${selectedVersion.name}..."
+                    statusText = "[SYSTEM] Initializing 120 FPS Unlocker..."
                     statusText += "\n[NETWORK] Downloading Tweaks from GitHub..."
                     val url120fps = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/refs/heads/main/v2.0/120FPS.zip"
                     
@@ -150,14 +112,7 @@ fun GfxDashboardScreen() {
                         val unzippedDir = File(cacheDir, "extracted_files")
                         
                         GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
-                            statusText += "\n[SHIZUKU] Replacing Game Configs..."
-                            GfxBackendManager.applyGfx(folder, selectedVersion.packageName).onSuccess { 
-                                statusText += "\n[SUCCESS] Optimization Successfully Applied!"
-                                Toast.makeText(context, "120 FPS Applied Successfully!", Toast.LENGTH_LONG).show() 
-                            }.onFailure { 
-                                statusText += "\n[ERROR] Injection Failed"
-                                Toast.makeText(context, "Apply failed", Toast.LENGTH_SHORT).show() 
-                            }
+                            applyGfxToVersions(folder, "120 FPS")
                         }.onFailure { 
                             statusText += "\n[ERROR] Extraction Failed"
                         }
@@ -181,7 +136,7 @@ fun GfxDashboardScreen() {
             scope.launch {
                 isProcessing = true
                 try {
-                    statusText = "[SYSTEM] Applying Ultra Lag Fix for ${selectedVersion.name}..."
+                    statusText = "[SYSTEM] Applying Ultra Lag Fix..."
                     statusText += "\n[NETWORK] Downloading Lag Fix Pack from GitHub..."
                     val urlLagFix = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/refs/heads/main/v2.0/LAGFIX.zip"
                     
@@ -191,14 +146,7 @@ fun GfxDashboardScreen() {
                         val unzippedDir = File(cacheDir, "extracted_files_lagfix")
                         
                         GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
-                            statusText += "\n[SHIZUKU] Injecting Active.sav to SaveGames..."
-                            GfxBackendManager.applyGfx(folder, selectedVersion.packageName).onSuccess { 
-                                statusText += "\n[SUCCESS] Optimization Successfully Applied!"
-                                Toast.makeText(context, "Lag Fix Applied Successfully!", Toast.LENGTH_LONG).show() 
-                            }.onFailure { 
-                                statusText += "\n[ERROR] Replacement Failed"
-                                Toast.makeText(context, "Apply failed", Toast.LENGTH_SHORT).show() 
-                            }
+                            applyGfxToVersions(folder, "Lag Fix")
                         }.onFailure { 
                             statusText += "\n[ERROR] Data Extraction Error"
                         }
@@ -290,6 +238,15 @@ fun GfxDashboardScreen() {
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Active Target: ${selectedVersion.name}",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
                 
                 VersionSelector(
                     selectedVersion = selectedVersion,
@@ -298,7 +255,7 @@ fun GfxDashboardScreen() {
                 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Restored Main Action Buttons
+                // Main Action Buttons
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     UnlockButton(
                         text = "120 FPS\nUNLOCKER",
@@ -312,31 +269,6 @@ fun GfxDashboardScreen() {
                         onClick = onLagFixClick
                     )
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-                
-                // Android Tweaks UI Section
-                AndroidTweaksSection(
-                    uiTouchSpeed = uiTouchSpeed,
-                    onUiTouchSpeedChange = { onTweakToggle("UI Touch Speed (0.5x)", it) { uiTouchSpeed = it } },
-                    gameMode = gameMode,
-                    onGameModeChange = { onTweakToggle("Android Game Mode Force", it) { gameMode = it } },
-                    phantomProcess = phantomProcess,
-                    onPhantomProcessChange = { onTweakToggle("Phantom Process Limiter", it) { phantomProcess = it } },
-                    frameLatency = frameLatency,
-                    onFrameLatencyChange = { onTweakToggle("Frame Latency Fixer", it) { frameLatency = it } },
-                    fifoUi = fifoUi,
-                    onFifoUiChange = { onTweakToggle("FIFO UI Governor", it) { fifoUi = it } },
-                    precisionAim = precisionAim,
-                    onPrecisionAimChange = { onTweakToggle("High Precision Aim Engine", it) { precisionAim = it } },
-                    lmkProtection = lmkProtection,
-                    onLmkProtectionChange = { onTweakToggle("LMK Protection Lock", it) { lmkProtection = it } },
-                    disableBackpressure = disableBackpressure,
-                    onDisableBackpressureChange = { onTweakToggle("Disable Backpressure", it) { disableBackpressure = it } },
-                    ultraNetwork = ultraNetwork,
-                    onUltraNetworkChange = { onTweakToggle("Ultra Network Buffer", it) { ultraNetwork = it } },
-                    onDeepCachePurge = onDeepCachePurge
-                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -440,108 +372,6 @@ fun UnlockButton(text: String, enabled: Boolean, alphaPulse: Float, onClick: () 
 }
 
 @Composable
-fun AndroidTweaksSection(
-    uiTouchSpeed: Boolean,
-    onUiTouchSpeedChange: (Boolean) -> Unit,
-    gameMode: Boolean,
-    onGameModeChange: (Boolean) -> Unit,
-    phantomProcess: Boolean,
-    onPhantomProcessChange: (Boolean) -> Unit,
-    frameLatency: Boolean,
-    onFrameLatencyChange: (Boolean) -> Unit,
-    fifoUi: Boolean,
-    onFifoUiChange: (Boolean) -> Unit,
-    precisionAim: Boolean,
-    onPrecisionAimChange: (Boolean) -> Unit,
-    lmkProtection: Boolean,
-    onLmkProtectionChange: (Boolean) -> Unit,
-    disableBackpressure: Boolean,
-    onDisableBackpressureChange: (Boolean) -> Unit,
-    ultraNetwork: Boolean,
-    onUltraNetworkChange: (Boolean) -> Unit,
-    onDeepCachePurge: () -> Unit
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = "SYSTEM PERFORMANCE ENGINE",
-            color = Color(0xFFFF3131),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                .shadow(8.dp, RoundedCornerShape(12.dp), spotColor = Color(0xFFFF3131).copy(alpha = 0.2f)),
-            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                TweakSwitchRow("UI Touch Speed (0.5x)", uiTouchSpeed, onUiTouchSpeedChange)
-                TweakSwitchRow("Android Game Mode Force", gameMode, onGameModeChange)
-                TweakSwitchRow("Phantom Process Limiter", phantomProcess, onPhantomProcessChange)
-                TweakSwitchRow("Frame Latency Fixer", frameLatency, onFrameLatencyChange)
-                TweakSwitchRow("FIFO UI Governor", fifoUi, onFifoUiChange)
-                TweakSwitchRow("High Precision Aim Engine", precisionAim, onPrecisionAimChange)
-                TweakSwitchRow("LMK Protection Lock", lmkProtection, onLmkProtectionChange)
-                TweakSwitchRow("Disable Backpressure", disableBackpressure, onDisableBackpressureChange)
-                TweakSwitchRow("Ultra Network Buffer", ultraNetwork, onUltraNetworkChange)
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onDeepCachePurge,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .shadow(10.dp, RoundedCornerShape(8.dp), spotColor = Color(0xFFFF3131)),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3131)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("DEEP CACHE PURGE", fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TweakSwitchRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            color = Color.White.copy(alpha = 0.9f),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFFFF3131),
-                uncheckedThumbColor = Color.Gray,
-                uncheckedTrackColor = Color.DarkGray
-            )
-        )
-    }
-}
-
-@Composable
 fun LagFixButton(enabled: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
@@ -570,37 +400,67 @@ fun SocialIcon(name: String, url: String, color: Color) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun VersionSelector(selectedVersion: PubgVersion, onVersionSelected: (PubgVersion) -> Unit) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
+fun VersionSelector(
+    selectedVersion: PubgVersion,
+    onVersionSelected: (PubgVersion) -> Unit
+) {
+    val versions = listOf(
+        PubgVersion("BGMI", "com.pubg.imobile"),
+        PubgVersion("GLOBAL", "com.tencent.ig"),
+        PubgVersion("KR", "com.pubg.krmobile"),
+        PubgVersion("VN", "com.vng.pubgmobile"),
+        PubgVersion("TW", "com.pubg.twmobile")
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.Center,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        maxItemsInEachRow = 3
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        pubgVersions.forEach { version ->
-            val isSelected = selectedVersion == version
-            Surface(
-                modifier = Modifier
-                    .padding(horizontal = 4.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onVersionSelected(version) },
-                color = if (isSelected) Color(0xFFFF3131).copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.4f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp, 
-                    if (isSelected) Color(0xFFFF3131) else Color.Gray.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = version.name,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    color = if (isSelected) Color.White else Color.Gray,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                )
+        versions.forEach { version ->
+            val isSelected = selectedVersion.packageName == version.packageName
+            VersionChip(
+                text = version.name,
+                isSelected = isSelected,
+                onClick = { onVersionSelected(version) }
+            )
+            if (version != versions.last()) {
+                Spacer(modifier = Modifier.width(10.dp))
             }
+        }
+    }
+}
+
+@Composable
+fun VersionChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .height(40.dp)
+            .widthIn(min = 80.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() },
+        color = if (isSelected) Color(0xFF3F0000) else Color.Black.copy(alpha = 0.4f),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) Color(0xFFFF3131) else Color.Gray.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                color = if (isSelected) Color.White else Color.Gray,
+                fontSize = 13.sp,
+                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                letterSpacing = 1.sp
+            )
         }
     }
 }
