@@ -8,7 +8,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +21,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -103,21 +106,31 @@ fun GfxDashboardScreen() {
                 isProcessing = true
                 try {
                     statusText = "[SYSTEM] Initializing 120 FPS Unlocker..."
-                    statusText += "\n[NETWORK] Downloading Tweaks from GitHub..."
-                    val url120fps = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/refs/heads/main/v2.0/120FPS.zip"
+                    
+                    val url120fps = "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0.0/120FPS.zip"
+                    val storageDir = context.getExternalFilesDir(null) ?: throw Exception("Storage unavailable")
+                    val cachedZip = File(storageDir, "120FPS.zip")
+                    val extractedDir = File(storageDir, "extracted_files")
+                    
+                    // SMART CHECK
+                    if (cachedZip.exists() && extractedDir.exists()) {
+                        Toast.makeText(context, "File loaded from cache.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Downloading assets...", Toast.LENGTH_SHORT).show()
+                    }
+
+                    statusText += "\n[NETWORK] Synchronizing with Server..."
                     
                     GfxBackendManager.downloadGfxZip(context, url120fps).onSuccess { zip ->
-                        statusText += "\n[DECRYPT] Extracting Configuration..."
-                        val cacheDir = context.externalCacheDir ?: throw Exception("Cache unavailable")
-                        val unzippedDir = File(cacheDir, "extracted_files")
+                        statusText += "\n[DECRYPT] Processing Configuration..."
                         
-                        GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
+                        GfxBackendManager.extractZip(zip, extractedDir).onSuccess { folder ->
                             applyGfxToVersions(folder, "120 FPS")
                         }.onFailure { 
                             statusText += "\n[ERROR] Extraction Failed"
                         }
                     }.onFailure { 
-                        statusText += "\n[ERROR] Download Interrupted"
+                        statusText += "\n[ERROR] Sync Interrupted"
                         Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show() 
                     }
                 } catch (e: Exception) {
@@ -137,21 +150,31 @@ fun GfxDashboardScreen() {
                 isProcessing = true
                 try {
                     statusText = "[SYSTEM] Applying Ultra Lag Fix..."
-                    statusText += "\n[NETWORK] Downloading Lag Fix Pack from GitHub..."
-                    val urlLagFix = "https://github.com/GfxGamerLab/gfx-pubg-files/raw/refs/heads/main/v2.0/LAGFIX.zip"
+                    
+                    val urlLagFix = "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0.0/LAGFIX.zip"
+                    val storageDir = context.getExternalFilesDir(null) ?: throw Exception("Storage unavailable")
+                    val cachedZip = File(storageDir, "LAGFIX.zip")
+                    val extractedDir = File(storageDir, "extracted_files_lagfix")
+
+                    // SMART CHECK
+                    if (cachedZip.exists() && extractedDir.exists()) {
+                        Toast.makeText(context, "File loaded from cache.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Downloading assets...", Toast.LENGTH_SHORT).show()
+                    }
+
+                    statusText += "\n[NETWORK] Accessing Optimization Pack..."
                     
                     GfxBackendManager.downloadGfxZip(context, urlLagFix).onSuccess { zip ->
-                        statusText += "\n[DECRYPT] Processing Optimization Streams..."
-                        val cacheDir = context.externalCacheDir ?: throw Exception("Cache unavailable")
-                        val unzippedDir = File(cacheDir, "extracted_files_lagfix")
+                        statusText += "\n[DECRYPT] Rebuilding Texture Streams..."
                         
-                        GfxBackendManager.extractZip(zip, unzippedDir).onSuccess { folder ->
+                        GfxBackendManager.extractZip(zip, extractedDir).onSuccess { folder ->
                             applyGfxToVersions(folder, "Lag Fix")
                         }.onFailure { 
-                            statusText += "\n[ERROR] Data Extraction Error"
+                            statusText += "\n[ERROR] Process Interrupted"
                         }
                     }.onFailure { 
-                        statusText += "\n[ERROR] Repository Access Failed"
+                        statusText += "\n[ERROR] Access Denied or Network Error"
                         Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
@@ -216,35 +239,40 @@ fun GfxDashboardScreen() {
                     contentScale = ContentScale.Fit
                 )
 
+                // Shizuku Status Card
                 Card(
-                    modifier = Modifier.fillMaxWidth().shadow(16.dp, RoundedCornerShape(16.dp))
+                    modifier = Modifier.fillMaxWidth().shadow(16.dp, CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp))
                         .alpha(if (isProcessing) 1f else neonAlpha),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(16.dp)
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
+                    shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
+                    border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.4f))
                 ) {
                     Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(if (isConnected) Color.Green else Color.Red))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(if (isConnected) "Shizuku Connected" else "Shizuku Disconnected", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(if (isConnected) "SYSTEM: SHIZUKU ONLINE" else "SYSTEM: OFFLINE", color = Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 Surface(
                     color = Color(0xFFFF3131).copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f))
+                    shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp),
+                    border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f))
                 ) {
-                    Text("PUBG 4.5 Optimized", color = Color(0xFFFF3131), fontSize = 14.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), letterSpacing = 2.sp)
+                    Text("NANO-COOLING V4.5 ACTIVE", color = Color(0xFFFF3131), fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), letterSpacing = 2.sp)
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
+                // --- SECONDARY GRID (Versions) ---
                 Text(
-                    text = "Active Target: ${selectedVersion.name}",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
+                    text = "TARGET SELECTION GRID",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
                 
@@ -252,32 +280,46 @@ fun GfxDashboardScreen() {
                     selectedVersion = selectedVersion,
                     onVersionSelected = onVersionSelected
                 )
-                
-                Spacer(modifier = Modifier.height(24.dp))
 
-                // Main Action Buttons
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    UnlockButton(
-                        text = "120 FPS\nUNLOCKER",
-                        enabled = isConnected, 
-                        alphaPulse = neonAlpha, 
-                        onClick = on120FpsClick
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    LagFixButton(
-                        enabled = isConnected,
-                        onClick = onLagFixClick
-                    )
-                }
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // --- HERO ACTIONS ---
+                Text(
+                    text = "PRIMARY HARDWARE OVERRIDES",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                HeroHardwareButton(
+                    text = "120 FPS UNLOCKER",
+                    subText = "FORCE SYSTEM OVERCLOCK",
+                    enabled = isConnected,
+                    onClick = on120FpsClick,
+                    infiniteTransition = infiniteTransition
+                )
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                
+                HeroHardwareButton(
+                    text = "ACTIVATE LAG FIX",
+                    subText = "WIPE THERMAL LIMITS",
+                    enabled = isConnected,
+                    onClick = onLagFixClick,
+                    infiniteTransition = infiniteTransition
+                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // --- TERMINAL / VISUALIZER ---
             Box(
                 contentAlignment = Alignment.Center, 
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (isProcessing) 220.dp else 120.dp) // Dynamic height for web/terminal
+                    .height(if (isProcessing) 220.dp else 120.dp)
             ) {
                 if (!isProcessing) {
                     MorphingWebMask(infiniteTransition)
@@ -288,7 +330,7 @@ fun GfxDashboardScreen() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .fillMaxHeight()
-                            .border(1.dp, Color(0xFFFF3131), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color(0xFFFF3131), CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp)),
                         colors = CardDefaults.cardColors(containerColor = Color.Black)
                     ) {
                         Column(
@@ -312,9 +354,17 @@ fun GfxDashboardScreen() {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            // Social Icons in Grid
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                maxItemsInEachRow = 3
+            ) {
                 SocialIcon("YouTube", "https://youtube.com/@gfxgamerlab_1", Color.Red)
+                Spacer(modifier = Modifier.width(8.dp))
                 SocialIcon("Telegram", "https://t.me/gfxgamerlab", Color(0xFF24A1DE))
+                Spacer(modifier = Modifier.width(8.dp))
                 SocialIcon("WhatsApp", "https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l", Color(0xFF25D366))
             }
         }
@@ -323,17 +373,25 @@ fun GfxDashboardScreen() {
 
 @Composable
 fun MorphingWebMask(infiniteTransition: InfiniteTransition) {
-    val scale by infiniteTransition.animateFloat(
+    val scaleState = infiniteTransition.animateFloat(
         initialValue = 0.8f, targetValue = 1.2f,
         animationSpec = infiniteRepeatable(tween(3000), RepeatMode.Reverse), label = "WebScale"
     )
-    val morph by infiniteTransition.animateFloat(
+    val morphState = infiniteTransition.animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(3000), RepeatMode.Reverse), label = "WebMorph"
     )
 
-    Canvas(modifier = Modifier.size(300.dp).scale(scale).alpha(0.3f)) {
+    Canvas(modifier = Modifier
+        .size(300.dp)
+        .graphicsLayer {
+            scaleX = scaleState.value
+            scaleY = scaleState.value
+            alpha = 0.3f
+        }
+    ) {
         val center = Offset(size.width / 2, size.height / 2)
+        val morph = morphState.value
         for (i in 0 until 8) {
             val angle = (i * 45).toDouble() * Math.PI / 180
             drawLine(
@@ -355,36 +413,85 @@ fun MorphingWebMask(infiniteTransition: InfiniteTransition) {
 }
 
 @Composable
-fun UnlockButton(text: String, enabled: Boolean, alphaPulse: Float, onClick: () -> Unit) {
-    val infiniteTransition = rememberInfiniteTransition(label = "Glow")
-    val glowScale by infiniteTransition.animateFloat(initialValue = 1f, targetValue = 1.05f, animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "Glow")
-    val alpha by animateFloatAsState(if (enabled) alphaPulse else 0.5f, label = "A")
+fun HeroHardwareButton(
+    text: String,
+    subText: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    infiniteTransition: InfiniteTransition
+) {
+    val glowColorState = infiniteTransition.animateColor(
+        initialValue = Color(0xFF330000),
+        targetValue = Color(0xFFFF3131),
+        animationSpec = infiniteRepeatable(tween(2000), RepeatMode.Reverse),
+        label = "Glow"
+    )
+    val glowScaleState = infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
+        label = "HeroScale"
+    )
 
-    Box(
-        modifier = Modifier.size(200.dp).scale(if (enabled) glowScale else 1f).alpha(alpha)
-            .shadow(if (enabled) 30.dp else 0.dp, CircleShape, spotColor = Color.Blue)
-            .clip(CircleShape).background(if (enabled) Brush.linearGradient(listOf(Color(0xFFFF3131), Color(0xFF3131FF))) else Brush.linearGradient(listOf(Color.Gray, Color.DarkGray)))
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, lineHeight = 26.sp)
-    }
-}
-
-@Composable
-fun LagFixButton(enabled: Boolean, onClick: () -> Unit) {
     Surface(
+        onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
-            .fillMaxWidth(0.7f)
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        color = if (enabled) Color(0xFFFF3131).copy(alpha = 0.2f) else Color.DarkGray.copy(alpha = 0.2f),
-        border = androidx.compose.foundation.BorderStroke(2.dp, if (enabled) Color(0xFFFF3131) else Color.Gray),
-        shape = RoundedCornerShape(12.dp)
+            .fillMaxWidth()
+            .height(80.dp)
+            .graphicsLayer {
+                val scale = if (enabled) glowScaleState.value else 1f
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(
+                elevation = if (enabled) 12.dp else 0.dp,
+                shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
+                spotColor = Color.Red
+            ),
+        shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (enabled) glowColorState.value else Color.Gray.copy(alpha = 0.5f)
+        )
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text("ACTIVATE LAG FIX", color = if (enabled) Color.White else Color.Gray, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        val glowColor = glowColorState.value
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF1A1A1A), Color(0xFF0A0A0A))
+                    )
+                )
+                .padding(horizontal = 24.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Column {
+                Text(
+                    text = text,
+                    color = if (enabled) Color.White else Color.Gray,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = subText,
+                    color = if (enabled) Color(0xFFFF3131).copy(alpha = 0.7f) else Color.DarkGray,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+            }
+            
+            // Decorative Right Edge Indicator
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(4.dp)
+                    .fillMaxHeight(0.6f)
+                    .background(if (enabled) glowColor else Color.DarkGray)
+            )
         }
     }
 }
@@ -393,10 +500,22 @@ fun LagFixButton(enabled: Boolean, onClick: () -> Unit) {
 fun SocialIcon(name: String, url: String, color: Color) {
     val context = LocalContext.current
     Surface(
-        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
-        color = color.copy(alpha = 0.2f), border = androidx.compose.foundation.BorderStroke(1.dp, color)
+        modifier = Modifier
+            .padding(vertical = 4.dp)
+            .clip(CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp))
+            .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+        color = Color.Black.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
+        shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp)
     ) {
-        Text(name, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = name,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = Color.White,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 1.sp
+        )
     }
 }
 
@@ -413,13 +532,11 @@ fun VersionSelector(
         PubgVersion("TW", "com.pubg.twmobile")
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+    @OptIn(ExperimentalLayoutApi::class)
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        maxItemsInEachRow = 3
     ) {
         versions.forEach { version ->
             val isSelected = selectedVersion.packageName == version.packageName
@@ -428,9 +545,6 @@ fun VersionSelector(
                 isSelected = isSelected,
                 onClick = { onVersionSelected(version) }
             )
-            if (version != versions.last()) {
-                Spacer(modifier = Modifier.width(10.dp))
-            }
         }
     }
 }
@@ -439,26 +553,27 @@ fun VersionSelector(
 fun VersionChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
-            .height(40.dp)
-            .widthIn(min = 80.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .padding(4.dp)
+            .height(45.dp)
+            .widthIn(min = 90.dp)
+            .clip(CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp))
             .clickable { onClick() },
-        color = if (isSelected) Color(0xFF3F0000) else Color.Black.copy(alpha = 0.4f),
+        color = if (isSelected) Color(0xFF2A0000) else Color.Black.copy(alpha = 0.6f),
         border = BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
-            color = if (isSelected) Color(0xFFFF3131) else Color.Gray.copy(alpha = 0.5f)
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) Color(0xFFFF3131) else Color.Gray.copy(alpha = 0.3f)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp)
     ) {
         Box(
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = text,
                 color = if (isSelected) Color.White else Color.Gray,
-                fontSize = 13.sp,
-                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
                 letterSpacing = 1.sp
             )
         }

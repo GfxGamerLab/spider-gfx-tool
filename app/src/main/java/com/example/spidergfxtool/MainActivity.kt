@@ -15,17 +15,22 @@ import com.example.spidergfxtool.ui.GfxActivationScreen
 import com.example.spidergfxtool.ui.GfxDashboardScreen
 import com.example.spidergfxtool.ui.GfxExtremeHudScreen
 import com.example.spidergfxtool.ui.SpiderSplashScreen
+import com.example.spidergfxtool.ui.components.CyberDrawerOverlay
 import com.example.spidergfxtool.ui.theme.SpiderGFXToolTheme
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,25 +103,69 @@ enum class DashboardPage { SYSTEM_ENGINE, EXTREME_HUD }
 fun AppNavigation() {
     var showSplash by remember { mutableStateOf(true) }
     var isActivated by remember { mutableStateOf(false) }
+    var isDrawerOpen by remember { mutableStateOf(false) }
 
-    Crossfade(
-        targetState = if (showSplash) "splash" else if (!isActivated) "activation" else "dashboard",
-        animationSpec = tween(durationMillis = 1000),
-        label = "ScreenTransition"
-    ) { screenState ->
-        when (screenState) {
-            "splash" -> {
-                SpiderSplashScreen(onAnimationComplete = {
-                    showSplash = false
-                })
+    Box(modifier = Modifier.fillMaxSize()) {
+        Crossfade(
+            targetState = if (showSplash) "splash" else if (!isActivated) "activation" else "dashboard",
+            animationSpec = tween(durationMillis = 1000),
+            label = "ScreenTransition"
+        ) { screenState ->
+            when (screenState) {
+                "splash" -> {
+                    SpiderSplashScreen(onAnimationComplete = {
+                        showSplash = false
+                    })
+                }
+                "activation" -> {
+                    GfxActivationScreen(onActivated = {
+                        isActivated = true
+                    })
+                }
+                "dashboard" -> {
+                    DashboardNavigationWrapper()
+                }
             }
-            "activation" -> {
-                GfxActivationScreen(onActivated = {
-                    isActivated = true
-                })
-            }
-            "dashboard" -> {
-                DashboardNavigationWrapper()
+        }
+
+        // Floating Hamburger Icon (Global)
+        if (!showSplash) {
+            CyberHamburgerIcon(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .zIndex(150f),
+                onClick = { isDrawerOpen = true }
+            )
+        }
+
+        // Global Cyber Drawer
+        CyberDrawerOverlay(
+            isOpen = isDrawerOpen,
+            onClose = { isDrawerOpen = false }
+        )
+    }
+}
+
+@Composable
+fun CyberHamburgerIcon(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .size(45.dp)
+            .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color.Red),
+        color = Color.Black.copy(alpha = 0.7f),
+        shape = CutCornerShape(8.dp),
+        border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                repeat(3) {
+                    Box(modifier = Modifier.size(width = 20.dp, height = 2.dp).background(Color.White))
+                }
             }
         }
     }
@@ -165,12 +214,12 @@ fun CyberNavigationSwitcher(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SwitcherItem(
-            text = "SYSTEM ENGINE",
+            text = "GFX TOOL",
             isSelected = currentPage == DashboardPage.SYSTEM_ENGINE,
             onClick = { onPageSelected(DashboardPage.SYSTEM_ENGINE) }
         )
         SwitcherItem(
-            text = "EXTREME HUD",
+            text = "SYSTEM ENGINE",
             isSelected = currentPage == DashboardPage.EXTREME_HUD,
             onClick = { onPageSelected(DashboardPage.EXTREME_HUD) }
         )

@@ -164,7 +164,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (keyInput == "GAMERLAB") {
+                    if (keyInput == "SPIDER") {
                         val successPlayer = MediaPlayer.create(context, R.raw.correct_key)
                         successPlayer?.apply {
                             setOnCompletionListener { mp -> mp.release() }

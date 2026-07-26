@@ -18,10 +18,13 @@ import java.util.zip.ZipInputStream
  */
 object GfxBackendManager {
 
-    // Bulletproof OkHttpClient with redirects enabled
+    // Bulletproof OkHttpClient with redirects and timeouts
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     // Dynamic destination path generation
@@ -231,20 +234,18 @@ object GfxBackendManager {
     }
 
     /**
-     * Bulletproof Download Function - Uses getExternalCacheDir() for Shizuku access
+     * Bulletproof Download Function - Uses getExternalFilesDir(null) for permanent storage.
+     * Includes existence check to prevent redundant downloads.
      */
     suspend fun downloadGfxZip(context: Context, downloadUrl: String): Result<File> = withContext(Dispatchers.IO) {
-        val extCache = context.externalCacheDir ?: return@withContext Result.failure(IOException("External cache unavailable"))
+        val storageDir = context.getExternalFilesDir(null) ?: return@withContext Result.failure(IOException("External storage unavailable"))
         val fileName = if (downloadUrl.contains("LAGFIX")) "LAGFIX.zip" else "120FPS.zip"
-        val targetFile = File(extCache, fileName)
-        val extractedDirName = if (downloadUrl.contains("LAGFIX")) "extracted_files_lagfix" else "extracted_files"
-        val extractedDir = File(extCache, extractedDirName)
+        val targetFile = File(storageDir, fileName)
         
-        try {
-            if (targetFile.exists()) targetFile.delete()
-            if (extractedDir.exists()) extractedDir.deleteRecursively()
-        } catch (e: Exception) {
-            Log.e("GFX_DOWNLOAD", "Cleanup failed: ${e.message}")
+        // 1. Existence check: Skip if already exists
+        if (targetFile.exists() && targetFile.length() > 0) {
+            Log.i("GFX_DOWNLOAD", "Loading from permanent storage: $fileName")
+            return@withContext Result.success(targetFile)
         }
 
         val request = Request.Builder()
@@ -265,11 +266,17 @@ object GfxBackendManager {
     }
 
     /**
-     * LOCAL EXTRACTION: Extracts to externalCacheDir/extracted_files/
+     * LOCAL EXTRACTION: Extracts to app's permanent storage.
      */
     suspend fun extractZip(zipFile: File, outputDir: File): Result<File> = withContext(Dispatchers.IO) {
         try {
-            if (outputDir.exists()) outputDir.deleteRecursively()
+            // Only extract if the folder doesn't already have a 'files' subdirectory
+            val filesFolder = findFilesFolder(outputDir)
+            if (filesFolder != null && filesFolder.exists()) {
+                Log.i("GFX_EXTRACT", "Using existing extracted folder: ${outputDir.name}")
+                return@withContext Result.success(filesFolder)
+            }
+
             outputDir.mkdirs()
             
             ZipInputStream(FileInputStream(zipFile)).use { zis ->
@@ -287,9 +294,9 @@ object GfxBackendManager {
                 }
             }
             
-            val filesFolder = findFilesFolder(outputDir)
-            if (filesFolder != null) {
-                Result.success(filesFolder)
+            val newFilesFolder = findFilesFolder(outputDir)
+            if (newFilesFolder != null) {
+                Result.success(newFilesFolder)
             } else {
                 Result.failure(Exception("Could not find 'files' folder in zip"))
             }
@@ -311,12 +318,13 @@ object GfxBackendManager {
     }
 
     /**
-     * SAFE SHIZUKU COPY
+     * SAFE SHIZUKU MERGE: Merges contents into game's files folder without wiping data.
      */
     suspend fun applyGfx(filesFolder: File, packageName: String): Result<String> = withContext(Dispatchers.IO) {
         val sourcePath = filesFolder.absolutePath
         val destPath = getDestPath(packageName)
-        val command = "cp -rf \"$sourcePath\" \"$destPath\""
+        // Ensure destination files folder exists and merge contents via globbing
+        val command = "mkdir -p \"${destPath}files/\" && cp -rf \"$sourcePath\"/* \"${destPath}files/\""
         
         try {
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
