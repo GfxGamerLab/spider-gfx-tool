@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.example.spidergfxtool.ui.GfxActivationScreen
 import com.example.spidergfxtool.ui.GfxDashboardScreen
 import com.example.spidergfxtool.ui.GfxExtremeHudScreen
+import com.example.spidergfxtool.ui.GfxExtraFeaturesScreen
 import com.example.spidergfxtool.ui.SpiderSplashScreen
 import com.example.spidergfxtool.ui.components.CyberDrawerOverlay
 import com.example.spidergfxtool.ui.theme.SpiderGFXToolTheme
@@ -35,12 +36,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import rikka.shizuku.Shizuku
+import kotlinx.coroutines.*
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // --- IMMERSIVE FULLSCREEN MODE (GAME STYLE) ---
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        // --- SAFETY BOOT CHECK: RESET RESOLUTION ---
+        // Ensures the device always returns to normal size on app launch/restart
+        GfxBackendManager.globalReset()
+
         // SAFE INIT: Prevents crash if Shizuku binder is unreachable on certain devices
         try {
             GfxBackendManager.initShizukuListener(this)
@@ -88,6 +105,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         // Ensure resources are released safely
         try {
+            GfxBackendManager.globalReset() // AUTO-RESET ON APP CLOSE
             GfxBackendManager.destroy()
             AudioPlayerManager.stopAndRelease()
             SoundEffectsManager.release()
@@ -97,7 +115,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class DashboardPage { SYSTEM_ENGINE, EXTREME_HUD }
+enum class DashboardPage { GFX_TOOL, SYSTEM_ENGINE, EXTRA_FEATURES }
 
 @Composable
 fun AppNavigation() {
@@ -192,8 +210,9 @@ fun DashboardNavigationWrapper() {
             label = "DashboardTransition"
         ) { page ->
             when (page) {
-                DashboardPage.SYSTEM_ENGINE -> GfxDashboardScreen()
-                DashboardPage.EXTREME_HUD -> GfxExtremeHudScreen()
+                DashboardPage.GFX_TOOL -> GfxDashboardScreen()
+                DashboardPage.SYSTEM_ENGINE -> GfxExtremeHudScreen()
+                DashboardPage.EXTRA_FEATURES -> GfxExtraFeaturesScreen()
             }
         }
     }
@@ -215,13 +234,18 @@ fun CyberNavigationSwitcher(
     ) {
         SwitcherItem(
             text = "GFX TOOL",
+            isSelected = currentPage == DashboardPage.GFX_TOOL,
+            onClick = { onPageSelected(DashboardPage.GFX_TOOL) }
+        )
+        SwitcherItem(
+            text = "SYSTEM ENGINE",
             isSelected = currentPage == DashboardPage.SYSTEM_ENGINE,
             onClick = { onPageSelected(DashboardPage.SYSTEM_ENGINE) }
         )
         SwitcherItem(
-            text = "SYSTEM ENGINE",
-            isSelected = currentPage == DashboardPage.EXTREME_HUD,
-            onClick = { onPageSelected(DashboardPage.EXTREME_HUD) }
+            text = "EXTRA FEATURES",
+            isSelected = currentPage == DashboardPage.EXTRA_FEATURES,
+            onClick = { onPageSelected(DashboardPage.EXTRA_FEATURES) }
         )
     }
 }

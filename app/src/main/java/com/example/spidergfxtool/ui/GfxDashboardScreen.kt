@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
@@ -38,6 +39,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.R
+import com.example.spidergfxtool.ui.components.AnimatedSpiderWeb
+import com.example.spidergfxtool.ui.components.SocialIcon
+import com.example.spidergfxtool.ui.components.WhitelistOverlay
 import rikka.shizuku.Shizuku
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -62,6 +66,7 @@ fun getDetectedVersions(context: android.content.Context): List<PubgVersion> {
 @Composable
 fun GfxDashboardScreen() {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
     val isConnected = GfxBackendManager.isShizukuConnected.value
     var isProcessing by remember { mutableStateOf(false) }
@@ -72,6 +77,13 @@ fun GfxDashboardScreen() {
         mutableStateOf(detectedVersions.firstOrNull() ?: PubgVersion("GLOBAL", "com.tencent.ig")) 
     }
 
+    // RAM Sweeper States
+    var showWhitelist by remember { mutableStateOf(false) }
+    var includeSystemApps by remember { mutableStateOf(prefs.getBoolean("ram_include_system", false)) }
+    var currentWhitelist by remember { 
+        mutableStateOf(prefs.getStringSet("ram_whitelist", emptySet()) ?: emptySet()) 
+    }
+
     // --- MAPPED ACTION HANDLERS ---
     
     val onVersionSelected: (PubgVersion) -> Unit = { version ->
@@ -79,59 +91,34 @@ fun GfxDashboardScreen() {
         statusText = "[SYSTEM] Selected Target: ${version.name}"
     }
 
-    suspend fun applyGfxToVersions(folder: File, type: String) {
-        val targets = listOf(selectedVersion)
-        if (targets.isEmpty()) {
-            statusText += "\n[INFO] No PUBG package detected, executing universal system tweaks only."
-            GfxBackendManager.runShell(context, "echo 'no_game_detected'")
-            return
-        }
-
-        targets.forEach { version ->
-            statusText += "\n[SHIZUKU] Applying $type to ${version.name}..."
-            GfxBackendManager.applyGfx(folder, version.packageName).onSuccess { 
-                statusText += "\n[SUCCESS] Tweak Applied Successfully"
-            }.onFailure { 
-                statusText += "\n[SUCCESS] Tweak Applied Successfully"
-            }
-        }
-        Toast.makeText(context, "$type Optimization Applied!", Toast.LENGTH_LONG).show()
-    }
-
-    val on120FpsClick: () -> Unit = {
+    val onApplyFps: (Int) -> Unit = { fps ->
         if (!isConnected) {
             Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
         } else {
             scope.launch {
                 isProcessing = true
                 try {
-                    statusText = "[SYSTEM] Initializing 120 FPS Unlocker..."
-                    
-                    val url120fps = "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0.0/120FPS.zip"
-                    val storageDir = context.getExternalFilesDir(null) ?: throw Exception("Storage unavailable")
-                    val cachedZip = File(storageDir, "120FPS.zip")
-                    val extractedDir = File(storageDir, "extracted_files")
-                    
-                    // SMART CHECK
-                    if (cachedZip.exists() && extractedDir.exists()) {
-                        Toast.makeText(context, "File loaded from cache.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Downloading assets...", Toast.LENGTH_SHORT).show()
+                    val url = when(fps) {
+                        60 -> "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0-fps/60FPS.zip"
+                        90 -> "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0-fps/90FPS.zip"
+                        else -> "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0-fps/120FPS.zip"
                     }
-
-                    statusText += "\n[NETWORK] Synchronizing with Server..."
+                    val fileName = "${fps}FPS.zip"
                     
-                    GfxBackendManager.downloadGfxZip(context, url120fps).onSuccess { zip ->
-                        statusText += "\n[DECRYPT] Processing Configuration..."
-                        
-                        GfxBackendManager.extractZip(zip, extractedDir).onSuccess { folder ->
-                            applyGfxToVersions(folder, "120 FPS")
-                        }.onFailure { 
-                            statusText += "\n[ERROR] Extraction Failed"
-                        }
-                    }.onFailure { 
-                        statusText += "\n[ERROR] Sync Interrupted"
-                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show() 
+                    statusText = "[SYSTEM] Initializing $fps FPS Engine..."
+                    GfxBackendManager.applyFpsConfig(
+                        context = context,
+                        downloadUrl = url,
+                        fileName = fileName,
+                        targetPackage = selectedVersion.packageName
+                    ) { log ->
+                        statusText += "\n$log"
+                    }.onSuccess {
+                        statusText += "\n[SUCCESS] $fps FPS Engine Activated!"
+                        Toast.makeText(context, "$fps FPS Optimized!", Toast.LENGTH_LONG).show()
+                    }.onFailure { e ->
+                        statusText += "\n[ERROR] Operation Failed: ${e.message}"
+                        Toast.makeText(context, "Failed to apply $fps FPS", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     statusText += "\n[CRITICAL] Error: ${e.message}"
@@ -142,58 +129,8 @@ fun GfxDashboardScreen() {
         }
     }
 
-    val onLagFixClick: () -> Unit = {
-        if (!isConnected) {
-            Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
-        } else {
-            scope.launch {
-                isProcessing = true
-                try {
-                    statusText = "[SYSTEM] Applying Ultra Lag Fix..."
-                    
-                    val urlLagFix = "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0.0/LAGFIX.zip"
-                    val storageDir = context.getExternalFilesDir(null) ?: throw Exception("Storage unavailable")
-                    val cachedZip = File(storageDir, "LAGFIX.zip")
-                    val extractedDir = File(storageDir, "extracted_files_lagfix")
-
-                    // SMART CHECK
-                    if (cachedZip.exists() && extractedDir.exists()) {
-                        Toast.makeText(context, "File loaded from cache.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Downloading assets...", Toast.LENGTH_SHORT).show()
-                    }
-
-                    statusText += "\n[NETWORK] Accessing Optimization Pack..."
-                    
-                    GfxBackendManager.downloadGfxZip(context, urlLagFix).onSuccess { zip ->
-                        statusText += "\n[DECRYPT] Rebuilding Texture Streams..."
-                        
-                        GfxBackendManager.extractZip(zip, extractedDir).onSuccess { folder ->
-                            applyGfxToVersions(folder, "Lag Fix")
-                        }.onFailure { 
-                            statusText += "\n[ERROR] Process Interrupted"
-                        }
-                    }.onFailure { 
-                        statusText += "\n[ERROR] Access Denied or Network Error"
-                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    statusText += "\n[CRITICAL] Execution Error: ${e.message}"
-                } finally {
-                    isProcessing = false
-                }
-            }
-        }
-    }
-
-    // --- END HANDLERS ---
-
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         GfxBackendManager.checkAndRefreshStatus()
-    }
-
-    LaunchedEffect(isConnected) {
-        if (!isConnected && Shizuku.pingBinder()) GfxBackendManager.checkAndRefreshStatus()
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "Dashboard")
@@ -206,316 +143,315 @@ fun GfxDashboardScreen() {
         animationSpec = infiniteRepeatable(tween(4000, 1000), RepeatMode.Reverse), label = "C2"
     )
 
-    val neonAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
-        label = "NeonAlpha"
+    val neonCyan = Color(0xFF00FFFF)
+    val neonRed = Color(0xFFFF3131)
+
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f, targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "Neon"
     )
 
-    val showCursor by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(500), RepeatMode.Reverse),
-        label = "Cursor"
-    )
-
+    // LANDSCAPE HUD ROOT
     Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(color1, color2, Color.Black)))) {
-        val scrollState = rememberScrollState()
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // Overlay Layer
+        if (showWhitelist) {
+            WhitelistOverlay(
+                onDismiss = { showWhitelist = false },
+                onWhitelistChanged = { currentWhitelist = it }
+            )
+        }
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            // --- LEFT COLUMN: TACTICAL HUD (Left Thumb) ---
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1.1f)
+                    .padding(start = 24.dp, top = 24.dp, bottom = 24.dp, end = 12.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // APP BRANDING LOGO
                 Image(
                     painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                     contentDescription = "Spider Logo",
                     modifier = Modifier
-                        .size(100.dp)
-                        .padding(bottom = 16.dp),
+                        .size(80.dp)
+                        .padding(bottom = 12.dp)
+                        .align(Alignment.CenterHorizontally),
                     contentScale = ContentScale.Fit
                 )
 
-                // Shizuku Status Card
-                Card(
-                    modifier = Modifier.fillMaxWidth().shadow(16.dp, CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp))
-                        .alpha(if (isProcessing) 1f else neonAlpha),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.7f)),
-                    shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                    border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.4f))
-                ) {
-                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(if (isConnected) Color.Green else Color.Red))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(if (isConnected) "SYSTEM: SHIZUKU ONLINE" else "SYSTEM: OFFLINE", color = Color.White, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Surface(
-                    color = Color(0xFFFF3131).copy(alpha = 0.15f),
-                    shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp),
-                    border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f))
-                ) {
-                    Text("NANO-COOLING V4.5 ACTIVE", color = Color(0xFFFF3131), fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), letterSpacing = 2.sp)
-                }
-                
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // --- SECONDARY GRID (Versions) ---
                 Text(
-                    text = "TARGET SELECTION GRID",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 10.sp,
+                    text = "TACTICAL OVERRIDES",
+                    color = neonCyan.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    letterSpacing = 2.sp
                 )
                 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Version Selector Grid
                 VersionSelector(
                     selectedVersion = selectedVersion,
                     onVersionSelected = onVersionSelected
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // --- HERO ACTIONS ---
+                // --- FPS SELECTION ENGINE ---
                 Text(
-                    text = "PRIMARY HARDWARE OVERRIDES",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 10.sp,
+                    text = "FPS SELECTION ENGINE",
+                    color = neonCyan.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    letterSpacing = 2.sp
                 )
 
-                HeroHardwareButton(
-                    text = "120 FPS UNLOCKER",
-                    subText = "FORCE SYSTEM OVERCLOCK",
-                    enabled = isConnected,
-                    onClick = on120FpsClick,
-                    infiniteTransition = infiniteTransition
-                )
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                
-                HeroHardwareButton(
-                    text = "ACTIVATE LAG FIX",
-                    subText = "WIPE THERMAL LIMITS",
-                    enabled = isConnected,
-                    onClick = onLagFixClick,
-                    infiniteTransition = infiniteTransition
-                )
-            }
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HudTweakButton(
+                        text = "APPLY 60 FPS",
+                        subText = "STABLE SMOOTH PERFORMANCE",
+                        glowColor = neonCyan,
+                        alphaPulse = glowAlpha,
+                        enabled = isConnected && !isProcessing,
+                        onClick = { onApplyFps(60) }
+                    )
 
-            // --- TERMINAL / VISUALIZER ---
-            Box(
-                contentAlignment = Alignment.Center, 
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(if (isProcessing) 220.dp else 120.dp)
-            ) {
-                if (!isProcessing) {
-                    MorphingWebMask(infiniteTransition)
+                    HudTweakButton(
+                        text = "APPLY 90 FPS",
+                        subText = "HIGH REFRESH OVERDRIVE",
+                        glowColor = neonCyan,
+                        alphaPulse = glowAlpha,
+                        enabled = isConnected && !isProcessing,
+                        onClick = { onApplyFps(90) }
+                    )
+
+                    HudTweakButton(
+                        text = "APPLY 120 FPS",
+                        subText = "ULTIMATE ELITE FLUIDITY",
+                        glowColor = neonCyan,
+                        alphaPulse = glowAlpha,
+                        enabled = isConnected && !isProcessing,
+                        onClick = { onApplyFps(120) }
+                    )
                 }
 
-                if (isProcessing) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight()
-                            .border(1.dp, Color(0xFFFF3131), CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp)),
-                        colors = CardDefaults.cardColors(containerColor = Color.Black)
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // --- TACTICAL RAM SWEEPER ---
+                Text(
+                    text = "TACTICAL RAM SWEEPER",
+                    color = neonCyan.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("INCLUDE SYSTEM APPS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Switch(
+                        checked = includeSystemApps,
+                        onCheckedChange = { 
+                            includeSystemApps = it
+                            prefs.edit().putBoolean("ram_include_system", it).apply()
+                        },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color.Red)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            if (!isConnected) {
+                                Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            scope.launch {
+                                isProcessing = true
+                                statusText = "[SYSTEM] Initiating Tactical RAM Sweep..."
+                                GfxBackendManager.runRamSweeper(
+                                    context = context,
+                                    includeSystem = includeSystemApps,
+                                    whitelist = currentWhitelist
+                                ) { log ->
+                                    statusText += "\n$log"
+                                }
+                                isProcessing = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(50.dp).graphicsLayer {
+                            alpha = if (isConnected && !isProcessing) 1f else 0.5f
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp)
+                    ) {
+                        Text("KILL APPS", fontWeight = FontWeight.Black)
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = { showWhitelist = true },
+                        modifier = Modifier.height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray.copy(alpha = 0.5f)),
+                        shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                    ) {
+                        Text("WHITELIST", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(40.dp))
+                
+                // Social Links in Small HUD Style
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SocialIcon("YouTube", "https://youtube.com/@gfxgamerlab_1", Color.Red)
+                    SocialIcon("Telegram", "https://t.me/gfxgamerlab", Color(0xFF24A1DE))
+                }
+            }
+
+            // --- RIGHT COLUMN: MASTER CONSOLE (Right Thumb) ---
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(0.9f)
+                    .padding(start = 12.dp, top = 24.dp, bottom = 24.dp, end = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // MASTER STATUS RING
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
+                    Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = glowAlpha * 360f }) {
+                        drawArc(
+                            color = if (isConnected) neonCyan else neonRed,
+                            startAngle = 0f,
+                            sweepAngle = 280f,
+                            useCenter = false,
+                            style = Stroke(width = 4f, cap = StrokeCap.Round)
+                        )
+                    }
+                    
+                    Surface(
+                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) neonCyan else neonRed),
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.8f),
+                        border = BorderStroke(2.dp, if (isConnected) neonCyan else neonRed)
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp)
-                                .background(Color.Black)
-                                .verticalScroll(rememberScrollState())
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = statusText + if (showCursor > 0.5f) "_" else " ",
-                                color = Color(0xFFFF3131),
+                                text = if (isConnected) "ONLINE" else "OFFLINE",
+                                color = if (isConnected) neonCyan else neonRed,
                                 fontSize = 12.sp,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                lineHeight = 18.sp
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = "CORE LINK",
+                                color = Color.White.copy(alpha = 0.4f),
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // Social Icons in Grid
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                maxItemsInEachRow = 3
-            ) {
-                SocialIcon("YouTube", "https://youtube.com/@gfxgamerlab_1", Color.Red)
-                Spacer(modifier = Modifier.width(8.dp))
-                SocialIcon("Telegram", "https://t.me/gfxgamerlab", Color(0xFF24A1DE))
-                Spacer(modifier = Modifier.width(8.dp))
-                SocialIcon("WhatsApp", "https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l", Color(0xFF25D366))
+                // SYSTEM TERMINAL
+                Card(
+                    modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, neonRed.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
+                    shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = if (isProcessing) statusText + "_" else statusText,
+                            color = neonRed,
+                            fontSize = 10.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            lineHeight = 14.sp
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Status Badge
+                Surface(
+                    color = Color.White.copy(alpha = 0.05f),
+                    shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                ) {
+                    Text(
+                        text = "NANO-SYSTEM V4.5 ACTIVE",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        letterSpacing = 1.sp
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun MorphingWebMask(infiniteTransition: InfiniteTransition) {
-    val scaleState = infiniteTransition.animateFloat(
-        initialValue = 0.8f, targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(tween(3000), RepeatMode.Reverse), label = "WebScale"
-    )
-    val morphState = infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(3000), RepeatMode.Reverse), label = "WebMorph"
-    )
-
-    Canvas(modifier = Modifier
-        .size(300.dp)
-        .graphicsLayer {
-            scaleX = scaleState.value
-            scaleY = scaleState.value
-            alpha = 0.3f
-        }
-    ) {
-        val center = Offset(size.width / 2, size.height / 2)
-        val morph = morphState.value
-        for (i in 0 until 8) {
-            val angle = (i * 45).toDouble() * Math.PI / 180
-            drawLine(
-                color = Color.White,
-                start = center,
-                end = Offset(
-                    center.x + (size.width/2 * Math.cos(angle)).toFloat(),
-                    center.y + (size.height/2 * Math.sin(angle)).toFloat()
-                ),
-                strokeWidth = 2f
-            )
-        }
-        val path = Path()
-        val width = size.width * (0.3f + 0.1f * morph)
-        val height = size.height * (0.4f - 0.1f * morph)
-        path.addOval(androidx.compose.ui.geometry.Rect(center.x - width, center.y - height, center.x + width, center.y + height))
-        drawPath(path, Color.Red.copy(alpha = 0.5f * morph), style = Stroke(4f))
-    }
-}
-
-@Composable
-fun HeroHardwareButton(
+fun HudTweakButton(
     text: String,
     subText: String,
+    glowColor: Color,
+    alphaPulse: Float,
     enabled: Boolean,
-    onClick: () -> Unit,
-    infiniteTransition: InfiniteTransition
+    onClick: () -> Unit
 ) {
-    val glowColorState = infiniteTransition.animateColor(
-        initialValue = Color(0xFF330000),
-        targetValue = Color(0xFFFF3131),
-        animationSpec = infiniteRepeatable(tween(2000), RepeatMode.Reverse),
-        label = "Glow"
-    )
-    val glowScaleState = infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.02f,
-        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
-        label = "HeroScale"
-    )
-
     Surface(
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
-            .height(80.dp)
+            .height(70.dp)
             .graphicsLayer {
-                val scale = if (enabled) glowScaleState.value else 1f
-                scaleX = scale
-                scaleY = scale
+                alpha = if (enabled) 1f else 0.5f
             }
-            .shadow(
-                elevation = if (enabled) 12.dp else 0.dp,
-                shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                spotColor = Color.Red
-            ),
-        shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-        color = Color.Transparent,
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (enabled) glowColorState.value else Color.Gray.copy(alpha = 0.5f)
-        )
+            .shadow(if (enabled) (10 * alphaPulse).dp else 0.dp, CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp), spotColor = glowColor),
+        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp),
+        color = Color.White.copy(alpha = 0.05f),
+        border = BorderStroke(1.dp, if (enabled) glowColor.copy(alpha = alphaPulse) else Color.Gray.copy(alpha = 0.3f))
     ) {
-        val glowColor = glowColorState.value
         Box(
-            modifier = Modifier
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF1A1A1A), Color(0xFF0A0A0A))
-                    )
-                )
-                .padding(horizontal = 24.dp),
+            modifier = Modifier.background(
+                Brush.linearGradient(listOf(Color.Black.copy(alpha = 0.8f), Color.Transparent))
+            ).padding(horizontal = 20.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Column {
-                Text(
-                    text = text,
-                    color = if (enabled) Color.White else Color.Gray,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
-                )
-                Text(
-                    text = subText,
-                    color = if (enabled) Color(0xFFFF3131).copy(alpha = 0.7f) else Color.DarkGray,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
+                Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                Text(subText, color = glowColor.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
             
-            // Decorative Right Edge Indicator
+            // Slanted Decorative Edge
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .width(4.dp)
-                    .fillMaxHeight(0.6f)
-                    .background(if (enabled) glowColor else Color.DarkGray)
+                    .width(2.dp)
+                    .fillMaxHeight(0.5f)
+                    .background(glowColor.copy(alpha = alphaPulse))
             )
         }
-    }
-}
-
-@Composable
-fun SocialIcon(name: String, url: String, color: Color) {
-    val context = LocalContext.current
-    Surface(
-        modifier = Modifier
-            .padding(vertical = 4.dp)
-            .clip(CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp))
-            .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
-        color = Color.Black.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
-        shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp)
-    ) {
-        Text(
-            text = name,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 1.sp
-        )
     }
 }
 

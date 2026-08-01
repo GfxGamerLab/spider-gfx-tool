@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -18,7 +19,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.spidergfxtool.R
 import kotlinx.coroutines.delay
 
 @Composable
@@ -149,45 +154,18 @@ fun CyberWaveform(modifier: Modifier, color: Color) {
 
 @Composable
 fun SpiderLogo(modifier: Modifier = Modifier, glowIntensity: Float) {
-    val spiderColor = Color(0xFF8B0000)
-    val neonColor = Color(0xFFFF3131)
-
-    Canvas(modifier = modifier) {
-        val center = Offset(size.width / 2, size.height / 2)
-        val bodyWidth = size.width * 0.3f
-        val bodyHeight = size.height * 0.4f
-
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(neonColor.copy(alpha = 0.4f * glowIntensity), Color.Transparent),
-                center = center,
-                radius = size.width / 1.2f
-            )
+    Box(
+        modifier = modifier.graphicsLayer {
+            alpha = 0.6f + (0.4f * glowIntensity)
+        },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+            contentDescription = "Spider Logo",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
         )
-
-        val legPath = Path()
-        val legOffsets = listOf(
-            Offset(-0.2f, -0.4f) to Offset(-0.8f, -0.8f),
-            Offset(0.2f, -0.4f) to Offset(0.8f, -0.8f),
-            Offset(-0.3f, -0.1f) to Offset(-0.9f, -0.3f),
-            Offset(0.3f, -0.1f) to Offset(0.9f, -0.3f),
-            Offset(-0.3f, 0.1f) to Offset(-0.9f, 0.3f),
-            Offset(0.3f, 0.1f) to Offset(0.9f, 0.3f),
-            Offset(-0.2f, 0.4f) to Offset(-0.7f, 0.9f),
-            Offset(0.2f, 0.4f) to Offset(0.7f, 0.9f)
-        )
-
-        legOffsets.forEach { (start, end) ->
-            legPath.moveTo(center.x + (start.x * size.width / 2), center.y + (start.y * size.height / 2))
-            legPath.quadraticTo(
-                center.x + (end.x * size.width / 2), center.y + (start.y * size.height / 2),
-                center.x + (end.x * size.width / 2), center.y + (end.y * size.height / 2)
-            )
-        }
-
-        drawPath(path = legPath, color = spiderColor, style = Stroke(width = 10f))
-        drawOval(spiderColor, Offset(center.x - bodyWidth / 3, center.y - bodyHeight / 2), androidx.compose.ui.geometry.Size(bodyWidth / 1.5f, bodyHeight / 2.5f))
-        drawOval(spiderColor, Offset(center.x - bodyWidth / 2, center.y - bodyHeight / 8), androidx.compose.ui.geometry.Size(bodyWidth, bodyHeight / 1.5f))
     }
 }
 
