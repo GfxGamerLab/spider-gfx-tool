@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +40,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.R
+import com.example.spidergfxtool.SoundEffectsManager
+import com.example.spidergfxtool.AdsManager
 import com.example.spidergfxtool.ui.components.AnimatedSpiderWeb
 import com.example.spidergfxtool.ui.components.SocialIcon
 import com.example.spidergfxtool.ui.components.WhitelistOverlay
@@ -66,6 +69,7 @@ fun getDetectedVersions(context: android.content.Context): List<PubgVersion> {
 @Composable
 fun GfxDashboardScreen() {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val prefs = remember { context.getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
     val isConnected = GfxBackendManager.isShizukuConnected.value
@@ -84,14 +88,22 @@ fun GfxDashboardScreen() {
         mutableStateOf(prefs.getStringSet("ram_whitelist", emptySet()) ?: emptySet()) 
     }
 
+    // Central Feedback Helper
+    val triggerFeedback = {
+        SoundEffectsManager.playOn()
+        SoundEffectsManager.performHaptic(haptic)
+    }
+
     // --- MAPPED ACTION HANDLERS ---
     
     val onVersionSelected: (PubgVersion) -> Unit = { version ->
+        triggerFeedback()
         selectedVersion = version
         statusText = "[SYSTEM] Selected Target: ${version.name}"
     }
 
     val onApplyFps: (Int) -> Unit = { fps ->
+        triggerFeedback()
         if (!isConnected) {
             Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
         } else {
@@ -99,11 +111,16 @@ fun GfxDashboardScreen() {
                 isProcessing = true
                 try {
                     val url = when(fps) {
-                        60 -> "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0-fps/60FPS.zip"
-                        90 -> "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0-fps/90FPS.zip"
-                        else -> "https://github.com/GfxGamerLab/gfx-pubg-files/releases/download/v2.0-fps/120FPS.zip"
+                        60 -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/60FPS.zip"
+                        90 -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/90FPS.zip"
+                        120 -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/120FPS.zip"
+                        else -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/120FPS.zip"
                     }
-                    val fileName = "${fps}FPS.zip"
+                    val fileName = when(fps) {
+                        60 -> "60FPS_v3.zip"
+                        90 -> "90FPS_v3.zip"
+                        else -> "120FPS_v3.zip"
+                    }
                     
                     statusText = "[SYSTEM] Initializing $fps FPS Engine..."
                     GfxBackendManager.applyFpsConfig(
@@ -261,6 +278,7 @@ fun GfxDashboardScreen() {
                     Switch(
                         checked = includeSystemApps,
                         onCheckedChange = { 
+                            triggerFeedback()
                             includeSystemApps = it
                             prefs.edit().putBoolean("ram_include_system", it).apply()
                         },
@@ -273,21 +291,24 @@ fun GfxDashboardScreen() {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     Button(
                         onClick = {
-                            if (!isConnected) {
-                                Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-                            scope.launch {
-                                isProcessing = true
-                                statusText = "[SYSTEM] Initiating Tactical RAM Sweep..."
-                                GfxBackendManager.runRamSweeper(
-                                    context = context,
-                                    includeSystem = includeSystemApps,
-                                    whitelist = currentWhitelist
-                                ) { log ->
-                                    statusText += "\n$log"
+                            AdsManager.showInterstitial(context as android.app.Activity) {
+                                triggerFeedback()
+                                if (!isConnected) {
+                                    Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
+                                    return@showInterstitial
                                 }
-                                isProcessing = false
+                                scope.launch {
+                                    isProcessing = true
+                                    statusText = "[SYSTEM] Initiating Tactical RAM Sweep..."
+                                    GfxBackendManager.runRamSweeper(
+                                        context = context,
+                                        includeSystem = includeSystemApps,
+                                        whitelist = currentWhitelist
+                                    ) { log ->
+                                        statusText += "\n$log"
+                                    }
+                                    isProcessing = false
+                                }
                             }
                         },
                         modifier = Modifier.weight(1f).height(50.dp).graphicsLayer {
@@ -302,7 +323,10 @@ fun GfxDashboardScreen() {
                     Spacer(modifier = Modifier.width(8.dp))
 
                     Button(
-                        onClick = { showWhitelist = true },
+                        onClick = { 
+                            triggerFeedback()
+                            showWhitelist = true 
+                        },
                         modifier = Modifier.height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray.copy(alpha = 0.5f)),
                         shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp),

@@ -56,4 +56,10 @@ dependencies {
 
     // OkHttp Client
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Google AdMob SDK
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
+
+    // Material Icons Extended
+    implementation("androidx.compose.material:material-icons-extended")
 }

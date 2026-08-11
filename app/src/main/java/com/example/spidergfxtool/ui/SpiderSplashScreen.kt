@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -29,12 +31,14 @@ import kotlinx.coroutines.delay
 @Composable
 fun SpiderSplashScreen(onAnimationComplete: () -> Unit) {
     var startAnimation by remember { mutableStateOf(false) }
-    var displayedText by remember { mutableStateOf("") }
-    val fullText = "INITIALIZING CYBER CORE..."
+    val fullText = "SPIDER GFX ENGINE - INITIALIZING CORE..."
     
     val scale by animateFloatAsState(
-        targetValue = if (startAnimation) 1f else 0.5f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        targetValue = if (startAnimation) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
         label = "LogoScale"
     )
 
@@ -52,13 +56,9 @@ fun SpiderSplashScreen(onAnimationComplete: () -> Unit) {
     )
 
     LaunchedEffect(Unit) {
+        delay(300)
         startAnimation = true
-        // Typewriter effect
-        fullText.forEachIndexed { index, _ ->
-            displayedText = fullText.substring(0, index + 1)
-            delay(80)
-        }
-        delay(1500)
+        delay(2000) // 2 second cinematic delay
         onAnimationComplete()
     }
 
@@ -74,38 +74,50 @@ fun SpiderSplashScreen(onAnimationComplete: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.alpha(alpha)
         ) {
-            SpiderLogo(
-                modifier = Modifier.size(220.dp).scale(scale),
-                glowIntensity = glowAlpha
-            )
+            Box(contentAlignment = Alignment.Center) {
+                // Outer Neon Glow
+                Box(
+                    modifier = Modifier
+                        .size(240.dp)
+                        .scale(scale)
+                        .alpha(glowAlpha * 0.5f)
+                        .blur(30.dp)
+                        .background(Color(0xFFFF3131).copy(alpha = 0.3f), CircleShape)
+                )
+                
+                SpiderLogo(
+                    modifier = Modifier.size(220.dp).scale(scale),
+                    glowIntensity = glowAlpha
+                )
+            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(48.dp))
 
             Text(
                 text = "SPIDER GFX",
                 color = Color(0xFFFF3131),
-                fontSize = 36.sp,
+                fontSize = 38.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 10.sp,
+                letterSpacing = 12.sp,
                 modifier = Modifier.scale(scale)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = displayedText,
-                color = Color.White.copy(alpha = 0.7f),
-                fontSize = 12.sp,
+                text = fullText,
+                color = Color.White.copy(alpha = 0.6f * alpha),
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp,
+                letterSpacing = 3.sp,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
             )
             
             Spacer(modifier = Modifier.height(40.dp))
             
             CyberWaveform(
-                modifier = Modifier.width(200.dp).height(40.dp),
-                color = Color(0xFFFF3131)
+                modifier = Modifier.width(220.dp).height(50.dp),
+                color = Color(0xFFFF3131).copy(alpha = alpha)
             )
         }
     }
@@ -138,17 +150,8 @@ fun CyberWaveform(modifier: Modifier, color: Color) {
         drawPath(
             path = path,
             color = color,
-            style = Stroke(width = 3f)
+            style = Stroke(width = 4f)
         )
-        
-        // Add some glowing dots
-        repeat(5) { i ->
-            val dotX = (width / 6) * (i + 1)
-            val dotSine = Math.sin((dotX / width * 4 * Math.PI + phase).toDouble()).toFloat()
-            val dotMagnitude = Math.sin((dotX / width * Math.PI).toDouble()).toFloat()
-            val dotY = centerY + dotSine * (height / 2) * dotMagnitude
-            drawCircle(color, radius = 4f, center = Offset(dotX, dotY))
-        }
     }
 }
 
@@ -156,7 +159,7 @@ fun CyberWaveform(modifier: Modifier, color: Color) {
 fun SpiderLogo(modifier: Modifier = Modifier, glowIntensity: Float) {
     Box(
         modifier = modifier.graphicsLayer {
-            alpha = 0.6f + (0.4f * glowIntensity)
+            alpha = 0.7f + (0.3f * glowIntensity)
         },
         contentAlignment = Alignment.Center
     ) {
@@ -173,12 +176,12 @@ fun SpiderLogo(modifier: Modifier = Modifier, glowIntensity: Float) {
 fun WebPatternBackground(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val center = Offset(size.width / 2, size.height / 2)
-        val strokeColor = Color.White.copy(alpha = 0.05f)
+        val strokeColor = Color.White.copy(alpha = 0.04f)
         for (i in 0 until 12) {
             val angle = (i * 30).toDouble() * Math.PI / 180
             drawLine(strokeColor, center, Offset(center.x + (size.width * Math.cos(angle)).toFloat(), center.y + (size.height * Math.sin(angle)).toFloat()), 1f)
         }
-        for (i in 1..6) {
+        for (i in 1..8) {
             drawCircle(
                 color = strokeColor,
                 radius = (size.width / 6) * i,

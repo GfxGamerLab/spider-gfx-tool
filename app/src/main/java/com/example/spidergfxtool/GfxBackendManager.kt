@@ -254,17 +254,27 @@ object GfxBackendManager {
 
             val zipFile = File(appFpsDir, fileName)
 
-            // 1. Cache Check
+            // 1. Versioned Cache Check
             if (zipFile.exists() && zipFile.length() > 0) {
                 onProgress("[FPS ENGINE] Local zip found in app data directory. Skipping download.")
             } else {
-                // 2. Download from GitHub
+                // 2. Targeted Cache Cleanup (Remove only legacy non-v3 files)
+                val oldFiles = appFpsDir.listFiles()?.filter { !it.name.contains("_v3") }
+                if (oldFiles != null && oldFiles.isNotEmpty()) {
+                    onProgress("[FPS ENGINE] Purging legacy configuration files...")
+                    oldFiles.forEach { it.delete() }
+                }
+                
+                // 3. Download from GitHub
                 onProgress("[FPS ENGINE] Downloading payload to app data folder...")
                 val url = URL(downloadUrl)
                 val connection = url.openConnection() as HttpURLConnection
-                connection.connectTimeout = 15000
-                connection.readTimeout = 15000
-                connection.instanceFollowRedirects = true
+                connection.apply {
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "Mozilla/5.0")
+                }
                 
                 if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                     return@withContext Result.failure(IOException("Server Error: ${connection.responseCode}"))
@@ -272,11 +282,15 @@ object GfxBackendManager {
 
                 connection.inputStream.use { input ->
                     FileOutputStream(zipFile).use { output ->
-                        input.copyTo(output)
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                        }
                     }
                 }
                 connection.disconnect()
-                onProgress("[PATH] Downloaded to: ${zipFile.absolutePath}")
+                onProgress("[PATH] Saved as: ${zipFile.name}")
             }
 
             // 3. Extraction
@@ -358,7 +372,7 @@ object GfxBackendManager {
     }
 
     /**
-     * MASTER RAM SWEEPER: Force stops apps one-by-one with real-time feedback.
+     * SILENT SHIZUKU BACKGROUND APP KILLER (v3.0)
      */
     suspend fun runRamSweeper(
         context: Context,
@@ -366,49 +380,47 @@ object GfxBackendManager {
         whitelist: Set<String>,
         onProgress: (String) -> Unit
     ) = withContext(Dispatchers.IO) {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
+        onProgress("[SCAN] Identifying active background processes...")
         
-        // Safety: Never kill these
-        val criticalSafety = setOf(
-            "com.example.spidergfxtool",
-            "moe.shizuku.privileged.api",
-            "com.android.systemui",
-            "com.android.launcher",
-            "rikka.shizuku"
-        )
-
-        val targetList = packages.filter { pkg ->
-            val appInfo = pkg.applicationInfo
-            val isSystem = if (appInfo != null) (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0 else false
-            val isTarget = if (includeSystem) true else !isSystem
+        val pm = context.packageManager
+        val installedApps = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+        
+        val targets = installedApps.filter { app ->
+            val isSystem = (app.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+            val isUserApp = !isSystem
+            val hasLaunchIntent = pm.getLaunchIntentForPackage(app.packageName) != null
             
-            isTarget && 
-            pkg.packageName !in criticalSafety && 
-            pkg.packageName !in whitelist
+            isUserApp && 
+            hasLaunchIntent && 
+            app.packageName != context.packageName && 
+            app.packageName != "moe.shizuku.privileged.api" && 
+            app.packageName !in whitelist
         }
 
-        if (targetList.isEmpty()) {
-            onProgress("SYSTEM MEMORY OPTIMIZED. NO TARGETS.")
+        if (targets.isEmpty()) {
+            onProgress("[SUCCESS] System memory optimized. No active targets.")
             return@withContext
         }
 
-        targetList.forEachIndexed { index, pkg ->
-            val percent = ((index + 1).toFloat() / targetList.size * 100).toInt()
-            val name = pkg.applicationInfo?.loadLabel(pm)?.toString() ?: pkg.packageName
-            
-            onProgress("[$percent%] Terminating: $name...")
-            
+        var killedCount = 0
+        targets.forEachIndexed { index, app ->
             try {
-                // Execute force-stop via am
-                runShellInternal("am force-stop ${pkg.packageName}")
-                delay(80) // Professional visual delay
+                val percent = ((index + 1) * 100) / targets.size
+                val appName = app.loadLabel(pm).toString()
+                onProgress("[$percent%] Terminating: $appName...")
+                
+                // Execute system-level force stop silently via Shizuku
+                val command = "am force-stop ${app.packageName}"
+                runShellInternal(command)
+                killedCount++
+                delay(50) // High-speed silent execution
             } catch (e: Exception) {
-                Log.e("GFX_RAM_SWEEPER", "Failed to kill ${pkg.packageName}")
+                Log.e("GFX_RAM_SWEEPER", "Failed to kill ${app.packageName}")
             }
         }
         
-        onProgress("SYSTEM MEMORY OPTIMIZED. ALL TASKS COMPLETED.")
+        onProgress("[KILL] Force stopped $killedCount active background apps.")
+        onProgress("[SUCCESS] RAM cleared successfully!")
     }
 
     /**

@@ -16,11 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
+import com.example.spidergfxtool.SoundEffectsManager
 
 data class AppEntry(
     val name: String,
@@ -35,6 +37,7 @@ fun WhitelistOverlay(
     onWhitelistChanged: (Set<String>) -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val pm = context.packageManager
     val prefs = remember { context.getSharedPreferences("spider_gfx_prefs", Context.MODE_PRIVATE) }
     
@@ -63,7 +66,7 @@ fun WhitelistOverlay(
 
     val filteredApps = remember(searchQuery, installedApps) {
         if (searchQuery.isBlank()) installedApps
-        else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+        else installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -115,6 +118,8 @@ fun WhitelistOverlay(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
+                                        SoundEffectsManager.playOn()
+                                        SoundEffectsManager.performHaptic(haptic)
                                         val newWhitelist = if (isChecked) whitelist - app.packageName else whitelist + app.packageName
                                         whitelist = newWhitelist
                                         prefs.edit().putStringSet("ram_whitelist", newWhitelist).apply()
@@ -150,7 +155,11 @@ fun WhitelistOverlay(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = onDismiss,
+                    onClick = {
+                        SoundEffectsManager.playOff()
+                        SoundEffectsManager.performHaptic(haptic)
+                        onDismiss()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3131)),
                     shape = CutCornerShape(4.dp)

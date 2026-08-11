@@ -18,11 +18,14 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spidergfxtool.GfxBackendManager
+import com.example.spidergfxtool.SoundEffectsManager
+import com.example.spidergfxtool.AdsManager
 import com.example.spidergfxtool.SystemTelemetryViewModel
 import com.example.spidergfxtool.ui.components.AnimatedSpiderWeb
 import com.example.spidergfxtool.ui.components.CyberTweakCard
@@ -34,6 +37,7 @@ import java.util.Locale
 @Composable
 fun GfxExtraFeaturesScreen() {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val telemetryViewModel = remember { SystemTelemetryViewModel() }
     val prefs = remember { context.getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
@@ -50,6 +54,11 @@ fun GfxExtraFeaturesScreen() {
     DisposableEffect(Unit) {
         telemetryViewModel.startMonitoring(context)
         onDispose { telemetryViewModel.stopMonitoring() }
+    }
+
+    val triggerFeedback = {
+        SoundEffectsManager.playOn()
+        SoundEffectsManager.performHaptic(haptic)
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "ExtraFeatures")
@@ -120,6 +129,7 @@ fun GfxExtraFeaturesScreen() {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
+                                    triggerFeedback()
                                     if (!isConnected) {
                                         Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
                                         return@Button
@@ -145,6 +155,7 @@ fun GfxExtraFeaturesScreen() {
                             
                             Button(
                                 onClick = {
+                                    triggerFeedback()
                                     if (!isConnected) {
                                         Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
                                         return@Button

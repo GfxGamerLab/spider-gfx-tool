@@ -18,7 +18,9 @@ import androidx.compose.ui.geometry.Offset
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import com.example.spidergfxtool.SoundEffectsManager
 
 @Composable
 fun CyberTweakCard(
@@ -116,12 +118,17 @@ fun AnimatedSpiderWeb(infiniteTransition: InfiniteTransition) {
 
 @Composable
 fun CyberTweakChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .clip(CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp))
             .background(if (isSelected) Color(0xFF330000) else Color.Transparent)
             .border(1.dp, if (isSelected) Color(0xFFFF3131) else Color.DarkGray, CutCornerShape(4.dp))
-            .clickable(onClick = onClick)
+            .clickable {
+                SoundEffectsManager.playOn()
+                SoundEffectsManager.performHaptic(haptic)
+                onClick()
+            }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -137,11 +144,16 @@ fun CyberTweakChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
 @Composable
 fun SocialIcon(name: String, url: String, color: Color) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     Surface(
+        onClick = { 
+            SoundEffectsManager.playOn()
+            SoundEffectsManager.performHaptic(haptic)
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) 
+        },
         modifier = Modifier
             .padding(vertical = 4.dp)
-            .clip(CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp))
-            .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+            .clip(CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp)),
         color = Color.Black.copy(alpha = 0.5f),
         border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
         shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp)

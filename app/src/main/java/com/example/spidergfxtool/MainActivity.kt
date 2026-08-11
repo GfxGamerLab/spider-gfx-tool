@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.Scaffold
 import com.example.spidergfxtool.ui.GfxActivationScreen
 import com.example.spidergfxtool.ui.GfxDashboardScreen
 import com.example.spidergfxtool.ui.GfxExtremeHudScreen
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -57,6 +59,13 @@ class MainActivity : ComponentActivity() {
         // --- SAFETY BOOT CHECK: RESET RESOLUTION ---
         // Ensures the device always returns to normal size on app launch/restart
         GfxBackendManager.globalReset()
+
+        // Ads Initialization
+        AdsManager.init(this)
+        AdsManager.loadInterstitial(this)
+
+        val prefs = getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE)
+        SoundEffectsManager.isFeedbackEnabled = prefs.getBoolean("key_mech_feedback", true)
 
         // SAFE INIT: Prevents crash if Shizuku binder is unreachable on certain devices
         try {
@@ -123,52 +132,70 @@ fun AppNavigation() {
     var isActivated by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Crossfade(
-            targetState = if (showSplash) "splash" else if (!isActivated) "activation" else "dashboard",
-            animationSpec = tween(durationMillis = 1000),
-            label = "ScreenTransition"
-        ) { screenState ->
-            when (screenState) {
-                "splash" -> {
-                    SpiderSplashScreen(onAnimationComplete = {
-                        showSplash = false
-                    })
-                }
-                "activation" -> {
-                    GfxActivationScreen(onActivated = {
-                        isActivated = true
-                    })
-                }
-                "dashboard" -> {
-                    DashboardNavigationWrapper()
+    Scaffold(
+        bottomBar = {
+            if (!showSplash) {
+                AdsManager.BannerAdView()
+            }
+        },
+        containerColor = Color.Transparent // Maintain gradient backgrounds
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            Crossfade(
+                targetState = if (showSplash) "splash" else if (!isActivated) "activation" else "dashboard",
+                animationSpec = tween(durationMillis = 1000),
+                label = "ScreenTransition"
+            ) { screenState ->
+                when (screenState) {
+                    "splash" -> {
+                        SpiderSplashScreen(onAnimationComplete = {
+                            showSplash = false
+                        })
+                    }
+                    "activation" -> {
+                        GfxActivationScreen(onActivated = {
+                            isActivated = true
+                        })
+                    }
+                    "dashboard" -> {
+                        DashboardNavigationWrapper()
+                    }
                 }
             }
-        }
 
-        // Floating Hamburger Icon (Global)
-        if (!showSplash) {
-            CyberHamburgerIcon(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .zIndex(150f),
-                onClick = { isDrawerOpen = true }
+            // Floating Hamburger Icon (Global)
+            if (!showSplash) {
+                CyberHamburgerIcon(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .zIndex(150f),
+                    onClick = { isDrawerOpen = true }
+                )
+            }
+
+            // Global Cyber Drawer
+            CyberDrawerOverlay(
+                isOpen = isDrawerOpen,
+                onClose = { isDrawerOpen = false }
             )
         }
-
-        // Global Cyber Drawer
-        CyberDrawerOverlay(
-            isOpen = isDrawerOpen,
-            onClose = { isDrawerOpen = false }
-        )
     }
 }
 
 @Composable
 fun CyberHamburgerIcon(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
     Surface(
-        onClick = onClick,
+        onClick = {
+            SoundEffectsManager.playOn()
+            SoundEffectsManager.performHaptic(haptic)
+            onClick()
+        },
         modifier = modifier
             .size(45.dp)
             .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color.Red),
@@ -252,11 +279,16 @@ fun CyberNavigationSwitcher(
 
 @Composable
 fun SwitcherItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(if (isSelected) Color(0xFFFF3131) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .clickable {
+                SoundEffectsManager.playOn()
+                SoundEffectsManager.performHaptic(haptic)
+                onClick()
+            }
             .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {

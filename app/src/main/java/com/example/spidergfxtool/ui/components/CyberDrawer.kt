@@ -18,11 +18,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.example.spidergfxtool.SoundEffectsManager
 
 @Composable
 fun CyberDrawerOverlay(
@@ -30,6 +32,7 @@ fun CyberDrawerOverlay(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val infiniteTransition = rememberInfiniteTransition(label = "DrawerGlow")
     val glowColor by infiniteTransition.animateColor(
         initialValue = Color(0xFF330000),
@@ -95,7 +98,10 @@ fun CyberDrawerOverlay(
                                         textAlign = TextAlign.Justify
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    CyberDrawerButton("Privacy Policy") { /* Future URL */ }
+                                    CyberDrawerButton("Privacy Policy") { 
+                                        SoundEffectsManager.playOn()
+                                        SoundEffectsManager.performHaptic(haptic)
+                                    }
                                 }
                             }
                         }
@@ -127,6 +133,8 @@ fun CyberDrawerOverlay(
 
                         items(tutorials) { item ->
                             TutorialCard(item) {
+                                SoundEffectsManager.playOn()
+                                SoundEffectsManager.performHaptic(haptic)
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.url)))
                             }
                         }
@@ -221,6 +229,7 @@ fun TutorialCard(item: TutorialItem, onClick: () -> Unit) {
 @Composable
 fun SocialGrid() {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val socials = listOf(
         SocialData("YouTube", "https://youtube.com/@gfxgamerlab_1", Color.Red),
         SocialData("Telegram", "https://t.me/gfxgamerlab", Color(0xFF24A1DE)),
@@ -231,7 +240,11 @@ fun SocialGrid() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         socials.forEach { social ->
             Surface(
-                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(social.url))) },
+                onClick = { 
+                    SoundEffectsManager.playOn()
+                    SoundEffectsManager.performHaptic(haptic)
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(social.url))) 
+                },
                 modifier = Modifier.fillMaxWidth().height(45.dp),
                 color = social.color.copy(alpha = 0.1f),
                 border = BorderStroke(1.dp, social.color.copy(alpha = 0.4f)),

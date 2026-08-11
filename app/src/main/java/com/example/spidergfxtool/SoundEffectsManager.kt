@@ -3,12 +3,15 @@ package com.example.spidergfxtool
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
-import android.util.Log
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 object SoundEffectsManager {
     private var soundPool: SoundPool? = null
     private var soundOnId: Int = -1
     private var soundOffId: Int = -1
+
+    var isFeedbackEnabled: Boolean = true
 
     fun init(context: Context) {
         val audioAttributes = AudioAttributes.Builder()
@@ -27,14 +30,20 @@ object SoundEffectsManager {
     }
 
     fun playOn() {
-        if (soundOnId != -1) {
+        if (isFeedbackEnabled && soundOnId != -1) {
             soundPool?.play(soundOnId, 1.0f, 1.0f, 1, 0, 1.0f)
         }
     }
 
     fun playOff() {
-        if (soundOffId != -1) {
+        if (isFeedbackEnabled && soundOffId != -1) {
             soundPool?.play(soundOffId, 1.0f, 1.0f, 1, 0, 1.0f)
+        }
+    }
+
+    fun performHaptic(haptic: HapticFeedback) {
+        if (isFeedbackEnabled) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
 
