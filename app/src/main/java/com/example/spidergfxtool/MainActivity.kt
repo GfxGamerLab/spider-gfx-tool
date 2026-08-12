@@ -135,10 +135,16 @@ fun AppNavigation() {
     Scaffold(
         bottomBar = {
             if (!showSplash) {
-                AdsManager.BannerAdView()
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.Black,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+                ) {
+                    AdsManager.BannerAdView()
+                }
             }
         },
-        containerColor = Color.Transparent // Maintain gradient backgrounds
+        containerColor = Color.Transparent
     ) { paddingValues ->
         Box(
             modifier = Modifier

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Spider GFX Tool</string>
+    <string name="banner_ad_unit_id">ca-app-pub-3834589609578692/6944671506</string>
+    <string name="interstitial_ad_unit_id">ca-app-pub-3834589609578692/3089186977</string>
 </resources>

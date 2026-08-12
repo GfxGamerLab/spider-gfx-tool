@@ -3,9 +3,12 @@ package com.example.spidergfxtool
 import android.app.Activity
 import android.content.Context
 import android.util.Log
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
@@ -14,60 +17,54 @@ import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
-import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
 object AdsManager {
     private const val TAG = "AdsManager"
-    
-    // Ad Unit IDs
-    private const val BANNER_AD_UNIT_ID = "ca-app-pub-3834589609578692/6944671506"
-    private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3834589609578692/3089186977"
-    private const val TEST_DEVICE_ID = "7d37cb69-a705-4461-8f0e-10ca1ad1abe1"
 
     private var interstitialAd: InterstitialAd? = null
 
     fun init(context: Context) {
         MobileAds.initialize(context) {}
-        
-        // Configure Test Device
-        val configuration = RequestConfiguration.Builder()
-            .setTestDeviceIds(listOf(TEST_DEVICE_ID))
-            .build()
-        MobileAds.setRequestConfiguration(configuration)
     }
 
     /**
-     * Loads a standard Banner Ad.
+     * Loads a standard Banner Ad with fixed height to prevent layout shift.
      */
     @Composable
     fun BannerAdView(modifier: Modifier = Modifier) {
-        AndroidView(
-            modifier = modifier.fillMaxWidth(),
-            factory = { context ->
-                AdView(context).apply {
-                    setAdSize(AdSize.BANNER)
-                    adUnitId = BANNER_AD_UNIT_ID
-                    loadAd(AdRequest.Builder().build())
-                    adListener = object : AdListener() {
-                        override fun onAdFailedToLoad(error: LoadAdError) {
-                            Log.e(TAG, "Banner failed to load: ${error.message}")
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(50.dp) // Strictly fixed height to prevent UI jumping
+        ) {
+            AndroidView(
+                modifier = Modifier.fillMaxWidth(),
+                factory = { context ->
+                    AdView(context).apply {
+                        setAdSize(AdSize.BANNER)
+                        adUnitId = context.getString(R.string.banner_ad_unit_id)
+                        loadAd(AdRequest.Builder().build())
+                        adListener = object : AdListener() {
+                            override fun onAdFailedToLoad(error: LoadAdError) {
+                                Log.e(TAG, "Banner failed to load: ${error.message}")
+                            }
                         }
                     }
                 }
-            }
-        )
+            )
+        }
     }
 
     /**
-     * Pre-loads an Interstitial Ad.
+     * Pre-loads an Interstitial Ad using production ID.
      */
     fun loadInterstitial(context: Context) {
         val adRequest = AdRequest.Builder().build()
         InterstitialAd.load(
             context,
-            INTERSTITIAL_AD_UNIT_ID,
+            context.getString(R.string.interstitial_ad_unit_id),
             adRequest,
             object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: InterstitialAd) {

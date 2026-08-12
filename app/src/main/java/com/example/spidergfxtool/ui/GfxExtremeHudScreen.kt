@@ -4,13 +4,18 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
-import androidx.compose.animation.animateColor
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -136,6 +141,14 @@ fun CyberTweakToggleRow(
     }
 }
 
+enum class TweakCategory(val title: String, val icon: String) {
+    PERFORMANCE("PERFORMANCE ENGINE", "🚀"),
+    NETWORK("NETWORK ACCEL", "🌐"),
+    HUD_VISUALS("HUD & VISUALS", "🕸️"),
+    TOUCH_AUDIO("TOUCH & AUDIO", "🦾"),
+    DEVICE_MODULES("BRAND MODULES", "📱")
+}
+
 @Composable
 fun GfxExtremeHudScreen() {
     val context = LocalContext.current
@@ -145,13 +158,13 @@ fun GfxExtremeHudScreen() {
     val haptic = LocalHapticFeedback.current
     val isConnected = GfxBackendManager.isShizukuConnected.value
     
+    // UI Navigation State
+    var selectedCategory by remember { mutableStateOf<TweakCategory?>(null) }
+
     // States (Optimized)
     var hudOverlayEnabled by remember { mutableStateOf(prefs.getBoolean("key_hud_overlay", false)) }
     var refreshRate by remember { mutableStateOf(prefs.getString("key_refresh_rate", "60Hz") ?: "60Hz") }
-    
-    // MECH FEEDBACK - Default to TRUE
     var mechanicalFeedback by remember { mutableStateOf(prefs.getBoolean("key_mech_feedback", true)) }
-    
     var isTurboBoosting by remember { mutableStateOf(false) }
     var terminalText by remember { mutableStateOf("IDLE: SYSTEM ENGINE ACTIVE\n>> STABILITY PROTOCOL ARMED...") }
 
@@ -182,6 +195,20 @@ fun GfxExtremeHudScreen() {
     var samsungGosKiller by remember { mutableStateOf(prefs.getBoolean("key_samsung_gos", false)) }
     var xiaomiJoyose by remember { mutableStateOf(prefs.getBoolean("key_xiaomi_joyose", false)) }
     var brandAggressiveDoze by remember { mutableStateOf(prefs.getBoolean("key_brand_doze", false)) }
+
+    // ADVANCED KERNEL & TOUCH BOOST STATES (v4.0)
+    var cpuCorePinning by remember { mutableStateOf(prefs.getBoolean("key_cpu_pinning", false)) }
+    var touchSamplingBooster by remember { mutableStateOf(prefs.getBoolean("key_touch_sampling", false)) }
+    var forceMsaa4x by remember { mutableStateOf(prefs.getBoolean("key_force_msaa", false)) }
+    var appStandbyBypass by remember { mutableStateOf(prefs.getBoolean("key_standby_bypass", false)) }
+    var pingKillerPro by remember { mutableStateOf(prefs.getBoolean("key_ping_killer", false)) }
+
+    // NEW v4.0 ELITE STATES
+    var flashStorageTrim by remember { mutableStateOf(prefs.getBoolean("key_storage_trim", false)) }
+    var extremeThermalKillers by remember { mutableStateOf(prefs.getBoolean("key_daemon_thermal", false)) }
+    var networkMtuTuning by remember { mutableStateOf(prefs.getBoolean("key_mtu_tuning", false)) }
+    var vSyncDisable by remember { mutableStateOf(prefs.getBoolean("key_vsync_disable", false)) }
+    var audioBufferSlicer by remember { mutableStateOf(prefs.getBoolean("key_audio_slicer", false)) }
 
     // Visual Transitions (Optimized)
     val infiniteTransition = rememberInfiniteTransition(label = "SystemEngine")
@@ -248,349 +275,381 @@ fun GfxExtremeHudScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
-        // LAYER 0: Animated Spider Web
         AnimatedSpiderWeb(infiniteTransition)
 
         Row(modifier = Modifier.fillMaxSize()) {
-            // --- LEFT COLUMN: SYSTEM TWEAKS (Left Thumb) ---
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(1.1f)
-                    .padding(start = 24.dp, top = 24.dp, bottom = 24.dp, end = 12.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = "SYSTEM OVERRIDES",
-                    color = neonCyan.copy(alpha = 0.8f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ULTIMATE SMOOTHNESS & PERFORMANCE
-                CyberTweakCard(title = "ULTIMATE SMOOTHNESS & PERFORMANCE", icon = "⚡", statusHex = "0xELITE") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Button(
-                            onClick = {
-                                triggerActionFeedback(true)
-                                scope.launch(Dispatchers.IO) {
-                                    withContext(Dispatchers.Main) { terminalText = "[PROCESS] Injecting 2X UI Smoothness..." }
-                                    GfxBackendManager.runShell(context, "settings put global window_animation_scale 0.5 && settings put global transition_animation_scale 0.5 && settings put global animator_duration_scale 0.5")
-                                    withContext(Dispatchers.Main) { terminalText += "\n[SYSTEM ENGINE] 2X UI Smoothness Applied." }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = neonRed.copy(alpha = 0.2f)),
-                            shape = CutCornerShape(8.dp),
-                            border = BorderStroke(1.dp, neonRed.copy(alpha = 0.5f))
+            // --- LEFT COLUMN: SYSTEM ENGINE CONTENT ---
+            Box(modifier = Modifier.weight(1.1f).fillMaxHeight()) {
+                AnimatedContent(
+                    targetState = selectedCategory,
+                    transitionSpec = {
+                        if (targetState != null) {
+                            (slideInHorizontally { it } + fadeIn()).togetherWith(slideOutHorizontally { -it } + fadeOut())
+                        } else {
+                            (slideInHorizontally { -it } + fadeIn()).togetherWith(slideOutHorizontally { it } + fadeOut())
+                        }
+                    },
+                    label = "CategoryTransition"
+                ) { targetCategory ->
+                    if (targetCategory == null) {
+                        // DASHBOARD VIEW
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text("ENABLE 2X UI SMOOTHNESS", fontSize = 11.sp, fontWeight = FontWeight.Black)
-                        }
-
-                        Button(
-                            onClick = {
-                                triggerActionFeedback(true)
-                                scope.launch(Dispatchers.IO) {
-                                    withContext(Dispatchers.Main) { terminalText = "[PROCESS] Starting AOT Speed Overdrive..." }
-                                    val targets = listOf("com.tencent.ig", "com.pubg.imobile")
-                                    targets.forEach { pkg ->
-                                        withContext(Dispatchers.Main) { terminalText += "\n>> Compiling: $pkg..." }
-                                        GfxBackendManager.runShell(context, "cmd package compile -m speed -f $pkg")
-                                    }
-                                    withContext(Dispatchers.Main) { terminalText += "\n[SYSTEM ENGINE] ART Compiler executed. Game optimized for Max FPS." }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = neonRed.copy(alpha = 0.2f)),
-                            shape = CutCornerShape(8.dp),
-                            border = BorderStroke(1.dp, neonRed.copy(alpha = 0.5f))
-                        ) {
-                            Text("AOT GAME COMPILER (MAX FPS)", fontSize = 11.sp, fontWeight = FontWeight.Black)
-                        }
-
-                        Button(
-                            onClick = {
-                                triggerActionFeedback(true)
-                                scope.launch(Dispatchers.IO) {
-                                    withContext(Dispatchers.Main) { terminalText = "[PROCESS] Triggering Kernel Cache Purge..." }
-                                    GfxBackendManager.runShell(context, "echo 3 > /proc/sys/vm/drop_caches")
-                                    withContext(Dispatchers.Main) { terminalText += "\n[SYSTEM ENGINE] Deep caches dropped. RAM freed." }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = neonRed.copy(alpha = 0.2f)),
-                            shape = CutCornerShape(8.dp),
-                            border = BorderStroke(1.dp, neonRed.copy(alpha = 0.5f))
-                        ) {
-                            Text("FORCE DROP CACHES (RAM CLEANUP)", fontSize = 11.sp, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 🚀 PERFORMANCE ENGINE
-                CyberTweakCard(title = "PERFORMANCE ENGINE", icon = "🚀", statusHex = "0xAF32") {
-                    Column {
-                        CyberTweakToggleRow("Thermal Illusion", "Bypasses system thermal limits for stable FPS", "🌡️", thermalThrottling, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_thermal_over", it).apply()
-                            runTweak("Thermal Illusion", if (it) "cmd thermalservice override-status 0" else "cmd thermalservice reset", it) { thermalThrottling = it } 
-                        }
-                        CyberTweakToggleRow("ART Overdrive", "Optimizes Android Runtime for game assets", "💎", artOverdrive, glowAlphaState) {
-                            if (it && !isConnected) return@CyberTweakToggleRow
-                            artOverdrive = it
-                            if (it) {
-                                triggerActionFeedback(true)
-                                scope.launch(Dispatchers.IO) {
-                                    withContext(Dispatchers.Main) { terminalText = "[PROCESS] Compiling ART Assets..." }
-                                    GfxBackendManager.runShell(context, "cmd package compile -m speed -f com.tencent.ig")
-                                    withContext(Dispatchers.Main) { terminalText += "\n[SUCCESS] ART Optimized." }
-                                }
-                            }
-                        }
-                        CyberTweakToggleRow("Android Game Mode", "Enables system-level performance mode", "🎮", gameMode, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_game_mode", it).apply()
-                            runTweak("Game Mode", "cmd game set --mode performance %s", it) { gameMode = it } 
-                        }
-                        CyberTweakToggleRow("Battery Unrestrict", "Lifts power-saving caps on game process", "🔋", batteryUnrestrictor, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_batt_unrestrict", it).apply()
-                            runTweak("Battery", "dumpsys deviceidle whitelist +%s", it) { batteryUnrestrictor = it } 
-                        }
-                        CyberTweakToggleRow("Phantom Processes", "Optimizes background process management", "👻", phantomProcess, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_phantom_limiter", it).apply()
-                            runTweak("Phantom Limiter", "device_config put activity_manager max_phantom_processes 2147483647", it) { phantomProcess = it } 
-                        }
-                        CyberTweakToggleRow("LMK Protection", "Prevents Low Memory Killer from closing game", "🛡️", lmkProtection, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_lmk_prot", it).apply()
-                            runTweak("LMK Protection", "setprop ro.lmk.kill_heaviest_task false", it) { lmkProtection = it } 
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // 📱 BRAND-SPECIFIC HARDWARE MODULES
-                CyberTweakCard(title = "DEVICE-SPECIFIC HARDWARE MODULES", icon = "📱", statusHex = "0xBRND") {
-                    Column {
-                        // SAMSUNG
-                        CyberTweakToggleRow("Samsung GOS Killer", "Disables Game Optimization Service to stop throttling", "🇰🇷", samsungGosKiller, glowAlphaState) {
-                            prefs.edit().putBoolean("key_samsung_gos", it).apply()
-                            val cmd = if (it) "pm disable-user --user 0 com.samsung.android.game.gos" else "pm enable --user 0 com.samsung.android.game.gos"
-                            runTweak("Samsung GOS", cmd, it) { samsungGosKiller = it }
-                        }
-                        // XIAOMI
-                        CyberTweakToggleRow("Xiaomi Joyose Disabler", "Stops frame-drops caused by Xiaomi's cloud limiter", "🇨🇳", xiaomiJoyose, glowAlphaState) {
-                            prefs.edit().putBoolean("key_xiaomi_joyose", it).apply()
-                            val cmd = if (it) "pm disable-user --user 0 com.xiaomi.joyose" else "pm enable --user 0 com.xiaomi.joyose"
-                            runTweak("Xiaomi Joyose", cmd, it) { xiaomiJoyose = it }
-                        }
-                        // UNIVERSAL (OPPO/INFINIX/ETC)
-                        CyberTweakToggleRow("Aggressive Doze & RAM Flush", "Forces 100% RAM allocation to game window", "🐉", brandAggressiveDoze, glowAlphaState) {
-                            prefs.edit().putBoolean("key_brand_doze", it).apply()
-                            val cmd = if (it) "cmd deviceidle force-idle && am kill-all" else "cmd deviceidle unforce"
-                            runTweak("Aggressive RAM", cmd, it) { brandAggressiveDoze = it }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // 🌐 NETWORK ACCELERATION
-                CyberTweakCard(title = "NETWORK ACCELERATION", icon = "🌐", statusHex = "0xNW99") {
-                    Column {
-                        CyberTweakToggleRow("TCP Injection", "Reduces packet delay via TCP window optimization", "🛰️", tcpInjection, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_tcp_inject", it).apply()
-                            runTweak("TCP Injection", if (it) "settings put global tcp_default_init_rwnd 60" else "settings delete global tcp_default_init_rwnd", it) { tcpInjection = it } 
-                        }
-                        CyberTweakToggleRow("Ultra Network", "Allocates priority bandwidth to WiFi/Data", "📶", ultraNetwork, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_ultra_net", it).apply()
-                            runTweak("Ultra Network", "setprop net.tcp.buffersize.wifi 524288,1048576,2097152", it) { ultraNetwork = it } 
-                        }
-                        CyberTweakToggleRow("Ping Stabilizer", "Disables background WiFi scanning during match", "📡", pingStabilizer, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_ping_stab", it).apply()
-                            runTweak("Ping Stabilizer", "settings put global wifi_scan_always_enabled 0", it) { pingStabilizer = it } 
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // 🕸️ HUD & VISUALS
-                CyberTweakCard(title = "HUD & VISUALS", icon = "🕸️", statusHex = "0xV721") {
-                    Column {
-                        CyberTweakToggleRow("Real-Time HUD", "Displays FPS and System stats over game", "👓", hudOverlayEnabled, glowAlphaState) { 
-                            if (!Settings.canDrawOverlays(context)) {
-                                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-                                context.startActivity(intent)
-                            } else {
-                                hudOverlayEnabled = it
-                                prefs.edit().putBoolean("key_hud_overlay", it).apply()
-                                if (it) {
-                                    SoundEffectsManager.playOn()
-                                    context.startService(Intent(context, HudOverlayService::class.java)) 
-                                } else {
-                                    SoundEffectsManager.playOff()
-                                    context.stopService(Intent(context, HudOverlayService::class.java))
-                                }
-                            }
-                        }
-                        
-                        Text("DYNAMIC REFRESH RATE", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            listOf("60Hz", "90Hz", "120Hz").forEach { rate ->
-                                val isSelected = refreshRate == rate
-                                CyberTweakChip(rate, isSelected) {
-                                    refreshRate = rate
-                                    prefs.edit().putString("key_refresh_rate", rate).apply()
-                                    triggerActionFeedback(true)
-                                    scope.launch {
-                                        val rateVal = rate.replace("Hz", ".0")
-                                        GfxBackendManager.runShell(context, "settings put system peak_refresh_rate $rateVal")
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        CyberTweakToggleRow("Mech Feedback", "Activates haptic switch sounds for tactile feel", "🔊", mechanicalFeedback, glowAlphaState) { 
-                            if (!it) triggerActionFeedback(false) // Feedback before disabling
-                            SoundEffectsManager.isFeedbackEnabled = it
-                            mechanicalFeedback = it
-                            prefs.edit().putBoolean("key_mech_feedback", it).apply()
-                            if (it) triggerActionFeedback(true) // Feedback after enabling
-                        }
-                        CyberTweakToggleRow("HW Overlay Bypass", "Forces GPU to handle all screen layers", "🔳", hardwareOverlayBypass, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_hw_overlay", it).apply()
-                            runTweak("Overlay Bypass", "service call SurfaceFlinger 1008 i32 1", it) { hardwareOverlayBypass = it } 
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // ⚙️ SYSTEM OPTIMIZATION
-                CyberTweakCard(title = "SYSTEM OPTIMIZATION", icon = "⚙️", statusHex = "0xDB99") {
-                    Column {
-                        CyberTweakToggleRow("UI Touch Speed", "Minimizes UI animation delay for speed", "🖱️", uiTouchSpeed, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_touch_speed", it).apply()
-                            runTweak("Touch Speed", "settings put global window_animation_scale 0.5", it) { uiTouchSpeed = it } 
-                        }
-                        CyberTweakToggleRow("High Precision Aim", "Increases touch sensitivity in-game", "🎯", precisionAim, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_precision_aim", it).apply()
-                            runTweak("Precision Aim", "setprop debug.input.velocity_tracker_strategy lsq2", it) { precisionAim = it } 
-                        }
-                        CyberTweakToggleRow("Frame Latency", "Reduces frame render queue for faster response", "⌛", frameLatency, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_frame_latency", it).apply()
-                            runTweak("Frame Latency", "setprop debug.sf.latch_unsignaled 1", it) { frameLatency = it } 
-                        }
-                        CyberTweakToggleRow("FIFO UI Governor", "Sets UI thread to highest real-time priority", "🧵", fifoUi, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_fifo_ui", it).apply()
-                            runTweak("FIFO UI", "setprop sys.use_fifo_ui 1", it) { fifoUi = it } 
-                        }
-                        CyberTweakToggleRow("Vulkan Skia Opt", "Forces Vulkan GPU backend for 2D UI rendering", "🌋", vulkanSkia, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_vulkan_skia", it).apply()
-                            runTweak("Vulkan Skia", "setprop debug.hwui.renderer vulkan", it) { vulkanSkia = it } 
-                        }
-                        CyberTweakToggleRow("Memory Heap Flush", "Aggressively flushes RAM heap to prevent stutters", "🧠", memoryHeapFlush, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_mem_heap", it).apply()
-                            runTweak("Heap Flush", "cmd activity send-trim-memory --user current %s RUNNING_CRITICAL", it) { memoryHeapFlush = it } 
-                        }
-                        CyberTweakToggleRow("Disable Backpressure", "Stops system from slowing down frame delivery", "⏩", disableBackpressure, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_backpressure", it).apply()
-                            runTweak("Backpressure", "setprop debug.sf.disable_backpressure 1", it) { disableBackpressure = it } 
-                        }
-                        CyberTweakToggleRow("ART Compiler Turbo", "Optimizes DEX assets for maximum execution speed", "🚀", artCompiler, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_art_turbo", it).apply()
-                            runTweak("ART Turbo", "pm compile -m speed -f %s", it) { artCompiler = it } 
-                        }
-                        CyberTweakToggleRow("Thread Priority GPU", "Elevates render thread priority on hardware level", "🦾", threadPriority, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_thread_pri", it).apply()
-                            runTweak("Thread Priority", "setprop debug.composition.type gpu", it) { threadPriority = it } 
-                        }
-                        CyberTweakToggleRow("Zero-State BG", "Deeply suppresses non-game background activity", "🧊", backgroundZero, glowAlphaState) { 
-                            prefs.edit().putBoolean("key_bg_zero", it).apply()
-                            triggerActionFeedback(it)
-                            scope.launch(Dispatchers.IO) {
-                                withContext(Dispatchers.Main) { terminalText = "[PROCESS] Freezing Background Apps..." }
-                                GfxBackendManager.runShell(context, "cmd appops set com.facebook.katana RUN_IN_BACKGROUND ignore")
-                                withContext(Dispatchers.Main) {
-                                    terminalText += "\n[SUCCESS] Backgrounds Suppressed."
-                                    backgroundZero = it
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // MASTER ACTIONS
-                Button(
-                    onClick = onDeepCachePurge,
-                    modifier = Modifier.fillMaxWidth().height(45.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF3131).copy(alpha = 0.2f)),
-                    shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp),
-                    border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f))
-                ) {
-                    Text("DEEP CACHE PURGE", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
-                }
-
-                Spacer(modifier = Modifier.height(40.dp))
-
-                // Turbo Boost Reactor
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp).align(Alignment.CenterHorizontally)) {
-                    val reactorPulseState = infiniteTransition.animateFloat(
-                        initialValue = 1f, targetValue = 1.1f,
-                        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "Reactor"
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .graphicsLayer {
-                                val pulse = reactorPulseState.value
-                                scaleX = pulse
-                                scaleY = pulse
-                            }
-                            .shadow(20.dp, CutCornerShape(12.dp), spotColor = Color.Red)
-                            .background(
-                                Brush.radialGradient(listOf(Color(0xFFFF3131).copy(alpha = 0.8f), Color(0xFF2A0000))),
-                                CutCornerShape(12.dp)
+                            Text(
+                                text = "SYSTEM ENGINE DASHBOARD",
+                                color = neonCyan.copy(alpha = 0.8f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp
                             )
-                            .clickable {
-                                if (!isTurboBoosting) {
-                                    isTurboBoosting = true
-                                    triggerActionFeedback(true)
-                                    scope.launch {
-                                        terminalText = ">> INJECTING TURBO CORE..."
-                                        GfxBackendManager.runShell(context, "pm trim-caches 4G")
-                                        delay(500)
-                                        terminalText += "\n>> FORCING SYSTEM REFRESH..."
-                                        GfxBackendManager.runShell(context, "settings put system peak_refresh_rate 120.0")
-                                        delay(1000)
-                                        terminalText = "[CORE READY] ENGINE OVERCLOCKED."
-                                        delay(2000)
-                                        isTurboBoosting = false
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(2),
+                                modifier = Modifier.heightIn(max = 1200.dp).fillMaxWidth(0.92f),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                userScrollEnabled = false
+                            ) {
+                                items(TweakCategory.entries) { category ->
+                                    CategoryButton(
+                                        category = category,
+                                        neonColor = if (category == TweakCategory.TOUCH_AUDIO) neonRed else neonCyan,
+                                        modifier = Modifier.scale(0.92f)
+                                    ) {
+                                        triggerActionFeedback(true)
+                                        selectedCategory = category
                                     }
                                 }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (isTurboBoosting) "INJECTING" else "TURBO\nREACTOR",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            textAlign = TextAlign.Center,
-                            fontSize = 14.sp,
-                            letterSpacing = 2.sp
-                        )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(32.dp))
+
+                            // STANDALONE TURBO REACTOR
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().scale(0.9f)) {
+                                val reactorPulseState = infiniteTransition.animateFloat(
+                                    initialValue = 1f, targetValue = 1.1f,
+                                    animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "Reactor"
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(100.dp)
+                                        .graphicsLayer {
+                                            val pulse = reactorPulseState.value
+                                            scaleX = pulse
+                                            scaleY = pulse
+                                        }
+                                        .shadow(20.dp, CutCornerShape(12.dp), spotColor = Color.Red)
+                                        .background(
+                                            Brush.radialGradient(listOf(Color(0xFFFF3131).copy(alpha = 0.8f), Color(0xFF2A0000))),
+                                            CutCornerShape(12.dp)
+                                        )
+                                        .clickable {
+                                            if (!isTurboBoosting) {
+                                                isTurboBoosting = true
+                                                triggerActionFeedback(true)
+                                                scope.launch {
+                                                    terminalText = ">> INJECTING TURBO CORE..."
+                                                    GfxBackendManager.runShell(context, "pm trim-caches 4G")
+                                                    delay(500)
+                                                    terminalText += "\n>> FORCING SYSTEM REFRESH..."
+                                                    GfxBackendManager.runShell(context, "settings put system peak_refresh_rate 120.0")
+                                                    delay(1000)
+                                                    terminalText = "[CORE READY] ENGINE OVERCLOCKED."
+                                                    delay(2000)
+                                                    isTurboBoosting = false
+                                                }
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (isTurboBoosting) "LIVE" else "TURBO\nREACTOR",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 12.sp,
+                                        letterSpacing = 2.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Button(
+                                onClick = onDeepCachePurge,
+                                modifier = Modifier.fillMaxWidth(0.9f).height(50.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = neonRed.copy(alpha = 0.15f)),
+                                shape = CutCornerShape(topStart = 10.dp, bottomEnd = 10.dp),
+                                border = BorderStroke(1.dp, neonRed.copy(alpha = 0.5f))
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("♻️", fontSize = 16.sp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("DEEP CACHE PURGE", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color.White)
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(100.dp))
+                        }
+                    } else {
+                        // DETAIL VIEW
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { 
+                                    triggerActionFeedback(false)
+                                    selectedCategory = null 
+                                }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = targetCategory.title,
+                                    color = neonCyan,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 2.sp
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Box(modifier = Modifier.fillMaxWidth(0.9f)) {
+                                when (targetCategory) {
+                                    TweakCategory.PERFORMANCE -> {
+                                        CyberTweakCard(title = "CORE PERFORMANCE ENGINE", icon = "⚡", statusHex = "0xELITE") {
+                                            Column {
+                                                Button(
+                                                    onClick = {
+                                                        triggerActionFeedback(true)
+                                                        scope.launch(Dispatchers.IO) {
+                                                            withContext(Dispatchers.Main) { terminalText = "[PROCESS] Starting AOT Speed Overdrive..." }
+                                                            GfxBackendManager.runShell(context, "cmd package compile -m speed -f com.tencent.ig")
+                                                            withContext(Dispatchers.Main) { terminalText += "\n[SUCCESS] ART Optimized." }
+                                                        }
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = neonRed.copy(alpha = 0.15f)),
+                                                    border = BorderStroke(1.dp, neonRed.copy(alpha = 0.4f))
+                                                ) {
+                                                    Text("AOT GAME COMPILER (MAX FPS)", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                                                }
+
+                                                CyberTweakToggleRow("Thermal Illusion", "Bypasses system thermal limits for stable FPS", "🌡️", thermalThrottling, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_thermal_over", it).apply()
+                                                    runTweak("Thermal Illusion", if (it) "cmd thermalservice override-status 0" else "cmd thermalservice reset", it) { thermalThrottling = it } 
+                                                }
+                                                CyberTweakToggleRow("ART Overdrive", "Optimizes DEX runtime for game assets", "💎", artOverdrive, glowAlphaState) {
+                                                    artOverdrive = it
+                                                    if (it && isConnected) {
+                                                        triggerActionFeedback(true)
+                                                        scope.launch(Dispatchers.IO) {
+                                                            withContext(Dispatchers.Main) { terminalText = "[PROCESS] Compiling ART Assets..." }
+                                                            GfxBackendManager.runShell(context, "cmd package compile -m speed -f com.tencent.ig")
+                                                        }
+                                                    }
+                                                }
+                                                CyberTweakToggleRow("Android Game Mode", "Enables system-level performance mode", "🎮", gameMode, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_game_mode", it).apply()
+                                                    runTweak("Game Mode", "cmd game set --mode performance %s", it) { gameMode = it } 
+                                                }
+                                                CyberTweakToggleRow("Phantom Processes", "Removes limits on background child processes", "👻", phantomProcess, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_phantom_limiter", it).apply()
+                                                    runTweak("Phantom Limiter", "device_config put activity_manager max_phantom_processes 2147483647", it) { phantomProcess = it } 
+                                                }
+                                                CyberTweakToggleRow("LMK Protection", "Prevents Low Memory Killer from closing game", "🛡️", lmkProtection, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_lmk_prot", it).apply()
+                                                    runTweak("LMK Protection", "setprop ro.lmk.kill_heaviest_task false", it) { lmkProtection = it } 
+                                                }
+                                                CyberTweakToggleRow("Memory Heap Flush", "Aggressively flushes RAM heap to prevent stutters", "🧠", memoryHeapFlush, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_mem_heap", it).apply()
+                                                    runTweak("Heap Flush", "cmd activity send-trim-memory --user current %s RUNNING_CRITICAL", it) { memoryHeapFlush = it } 
+                                                }
+                                                CyberTweakToggleRow("Disable Backpressure", "Stops system from slowing down frame delivery", "⏩", disableBackpressure, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_backpressure", it).apply()
+                                                    runTweak("Backpressure", "setprop debug.sf.disable_backpressure 1", it) { disableBackpressure = it } 
+                                                }
+                                                CyberTweakToggleRow("ART Compiler Turbo", "Optimizes DEX assets for execution speed", "🚀", artCompiler, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_art_turbo", it).apply()
+                                                    runTweak("ART Turbo", "pm compile -m speed -f %s", it) { artCompiler = it } 
+                                                }
+                                                CyberTweakToggleRow("CPU Core Pinning", "Forces game thread to prime performance cores", "🦾", cpuCorePinning, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_cpu_pinning", it).apply()
+                                                    runTweak("CPU Pinning", "taskset -p f0 $(pidof %s)", it) { cpuCorePinning = it }
+                                                }
+                                                CyberTweakToggleRow("UFS/eMMC Storage Trim", "Forces block alignment for zero-delay loading", "💾", flashStorageTrim, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_storage_trim", it).apply()
+                                                    runTweak("Storage Trim", "sm fstrim", it) { flashStorageTrim = it }
+                                                    if (it) terminalText += "\n[PROCESS] Storage trim initiated..."
+                                                }
+                                                CyberTweakToggleRow("Daemon Thermal Killer", "Stops brand-specific background thermal throttlers", "🔥", extremeThermalKillers, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_daemon_thermal", it).apply()
+                                                    val cmd = if (it) "stop mi_thermald; stop thermald; stop gameopt" else "start mi_thermald; start thermald"
+                                                    runTweak("Thermal Killer", cmd, it) { extremeThermalKillers = it }
+                                                    if (it) terminalText += "\n[PROCESS] Thermal daemons suppressed..."
+                                                }
+                                            }
+                                        }
+                                    }
+                                    TweakCategory.NETWORK -> {
+                                        CyberTweakCard(title = "NETWORK ACCELERATION HUB", icon = "🌐", statusHex = "0xNW99") {
+                                            Column {
+                                                CyberTweakToggleRow("TCP Injection", "Reduces packet delay via TCP optimization", "🛰️", tcpInjection, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_tcp_inject", it).apply()
+                                                    runTweak("TCP Injection", if (it) "settings put global tcp_default_init_rwnd 60" else "settings delete global tcp_default_init_rwnd", it) { tcpInjection = it } 
+                                                }
+                                                CyberTweakToggleRow("Ultra Network", "Allocates priority bandwidth to WiFi/Data", "📶", ultraNetwork, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_ultra_net", it).apply()
+                                                    runTweak("Ultra Network", "setprop net.tcp.buffersize.wifi 524288,1048576,2097152", it) { ultraNetwork = it } 
+                                                }
+                                                CyberTweakToggleRow("Ping Stabilizer", "Disables background WiFi scanning during match", "📡", pingStabilizer, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_ping_stab", it).apply()
+                                                    runTweak("Ping Stabilizer", "settings put global wifi_scan_always_enabled 0", it) { pingStabilizer = it } 
+                                                }
+                                                CyberTweakToggleRow("Ping Killer Pro", "Routes sockets through Cloudflare 1.1.1.1", "🌩️", pingKillerPro, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_ping_killer", it).apply()
+                                                    val cmd = if (it) "settings put global private_dns_mode hostname && settings put global private_dns_specifier 1dot1dot1dot1.cloudflare-dns.com" else "settings put global private_dns_mode off"
+                                                    runTweak("Ping Killer", cmd, it) { pingKillerPro = it }
+                                                    if (it) terminalText += "\n[PROCESS] Cloudflare DNS routing active..."
+                                                }
+                                                CyberTweakToggleRow("MTU Size Tuning", "Optimizes packet size to fix desync (1428)", "📦", networkMtuTuning, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_mtu_tuning", it).apply()
+                                                    val cmd = if (it) "ifconfig wlan0 mtu 1428" else "ifconfig wlan0 mtu 1500"
+                                                    runTweak("MTU Tuning", cmd, it) { networkMtuTuning = it }
+                                                    if (it) terminalText += "\n[PROCESS] Network MTU optimized to 1428..."
+                                                }
+                                            }
+                                        }
+                                    }
+                                    TweakCategory.HUD_VISUALS -> {
+                                        CyberTweakCard(title = "GRAPHICS & HUD VISUALS", icon = "🕸️", statusHex = "0xV721") {
+                                            Column {
+                                                CyberTweakToggleRow("Real-Time HUD", "Displays FPS and System stats over game", "👓", hudOverlayEnabled, glowAlphaState) { 
+                                                    if (!Settings.canDrawOverlays(context)) {
+                                                        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+                                                        context.startActivity(intent)
+                                                    } else {
+                                                        hudOverlayEnabled = it
+                                                        prefs.edit().putBoolean("key_hud_overlay", it).apply()
+                                                        if (it) {
+                                                            SoundEffectsManager.playOn()
+                                                            context.startService(Intent(context, HudOverlayService::class.java)) 
+                                                        } else {
+                                                            SoundEffectsManager.playOff()
+                                                            context.stopService(Intent(context, HudOverlayService::class.java))
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                Text("DYNAMIC REFRESH RATE", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                    listOf("60Hz", "90Hz", "120Hz").forEach { rate ->
+                                                        val isSelected = refreshRate == rate
+                                                        CyberTweakChip(rate, isSelected) {
+                                                            refreshRate = rate
+                                                            prefs.edit().putString("key_refresh_rate", rate).apply()
+                                                            triggerActionFeedback(true)
+                                                            scope.launch {
+                                                                val rateVal = rate.replace("Hz", ".0")
+                                                                GfxBackendManager.runShell(context, "settings put system peak_refresh_rate $rateVal")
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                CyberTweakToggleRow("HW Overlay Bypass", "Forces GPU to handle all screen layers", "🔳", hardwareOverlayBypass, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_hw_overlay", it).apply()
+                                                    runTweak("Overlay Bypass", "service call SurfaceFlinger 1008 i32 1", it) { hardwareOverlayBypass = it } 
+                                                }
+                                                CyberTweakToggleRow("Vulkan Skia Opt", "Forces Vulkan backend for 2D UI rendering", "🌋", vulkanSkia, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_vulkan_skia", it).apply()
+                                                    runTweak("Vulkan Skia", "setprop debug.hwui.renderer vulkan", it) { vulkanSkia = it } 
+                                                }
+                                                CyberTweakToggleRow("Force 4x MSAA", "Injects anti-aliasing via GPU backend", "🎨", forceMsaa4x, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_force_msaa", it).apply()
+                                                    val cmd = if (it) "setprop debug.hwui.overdraw false && settings put global debug.force_msaa true" else "settings put global debug.force_msaa false"
+                                                    runTweak("GPU MSAA", cmd, it) { forceMsaa4x = it }
+                                                }
+                                                CyberTweakToggleRow("Disable V-Sync", "Bypasses frame limits for raw uncapped FPS", "🔓", vSyncDisable, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_vsync_disable", it).apply()
+                                                    runTweak("V-Sync", "setprop debug.hwui.disable_vsync ${if (it) "true" else "false"}", it) { vSyncDisable = it }
+                                                    if (it) terminalText += "\n[PROCESS] V-Sync disabled. Frame limits lifted..."
+                                                }
+                                            }
+                                        }
+                                    }
+                                    TweakCategory.TOUCH_AUDIO -> {
+                                        CyberTweakCard(title = "INPUT & AUDIO BOOST", icon = "🦾", statusHex = "0xI/O") {
+                                            Column {
+                                                CyberTweakToggleRow("UI Touch Speed", "Minimizes UI animation delay for speed", "🖱️", uiTouchSpeed, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_touch_speed", it).apply()
+                                                    runTweak("Touch Speed", "settings put global window_animation_scale 0.5", it) { uiTouchSpeed = it } 
+                                                }
+                                                CyberTweakToggleRow("High Precision Aim", "Increases touch sensitivity in-game", "🎯", precisionAim, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_precision_aim", it).apply()
+                                                    runTweak("Precision Aim", "setprop debug.input.velocity_tracker_strategy lsq2", it) { precisionAim = it } 
+                                                }
+                                                CyberTweakToggleRow("Frame Latency", "Reduces render queue for faster response", "⌛", frameLatency, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_frame_latency", it).apply()
+                                                    runTweak("Frame Latency", "setprop debug.sf.latch_unsignaled 1", it) { frameLatency = it } 
+                                                }
+                                                CyberTweakToggleRow("FIFO UI Governor", "Sets UI thread to highest priority", "🧵", fifoUi, glowAlphaState) { 
+                                                    prefs.edit().putBoolean("key_fifo_ui", it).apply()
+                                                    runTweak("FIFO UI", "setprop sys.use_fifo_ui 1", it) { fifoUi = it } 
+                                                }
+                                                CyberTweakToggleRow("Touch Sampling Booster", "Maximizes hardware touch reporting rate", "⚡", touchSamplingBooster, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_touch_sampling", it).apply()
+                                                    runTweak("Touch Booster", "settings put system pointer_speed 7", it) { touchSamplingBooster = it }
+                                                }
+                                                CyberTweakToggleRow("Zero-Delay Audio Slicer", "Removes Android buffer for instant footsteps", "🎧", audioBufferSlicer, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_audio_slicer", it).apply()
+                                                    val cmd = if (it) "setprop ro.audio.flinger_standbytime_ms 0 && setprop af.fast_track_multiplier 1" else "setprop ro.audio.flinger_standbytime_ms 3000"
+                                                    runTweak("Audio Slicer", cmd, it) { audioBufferSlicer = it }
+                                                    if (it) terminalText += "\n[PROCESS] Audio latency buffer sliced to zero..."
+                                                }
+                                            }
+                                        }
+                                    }
+                                    TweakCategory.DEVICE_MODULES -> {
+                                        CyberTweakCard(title = "BRAND-SPECIFIC HARDWARE MODULES", icon = "📱", statusHex = "0xBRND") {
+                                            Column {
+                                                CyberTweakToggleRow("Samsung GOS Killer", "Disables Game Optimization Service", "🇰🇷", samsungGosKiller, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_samsung_gos", it).apply()
+                                                    val cmd = if (it) "pm disable-user --user 0 com.samsung.android.game.gos" else "pm enable --user 0 com.samsung.android.game.gos"
+                                                    runTweak("Samsung GOS", cmd, it) { samsungGosKiller = it }
+                                                }
+                                                CyberTweakToggleRow("Xiaomi Joyose Disabler", "Stops cloud-based frame throttling", "🇨🇳", xiaomiJoyose, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_xiaomi_joyose", it).apply()
+                                                    val cmd = if (it) "pm disable-user --user 0 com.xiaomi.joyose" else "pm enable --user 0 com.xiaomi.joyose"
+                                                    runTweak("Xiaomi Joyose", cmd, it) { xiaomiJoyose = it }
+                                                }
+                                                CyberTweakToggleRow("Aggressive Doze & RAM Flush", "Forces 100% RAM allocation to game window", "🐉", brandAggressiveDoze, glowAlphaState) {
+                                                    prefs.edit().putBoolean("key_brand_doze", it).apply()
+                                                    val cmd = if (it) "cmd deviceidle force-idle && am kill-all" else "cmd deviceidle unforce"
+                                                    runTweak("Aggressive RAM", cmd, it) { brandAggressiveDoze = it }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(100.dp))
+                        }
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(100.dp))
             }
 
             // --- RIGHT COLUMN: MASTER CONSOLE (Right Thumb) ---
@@ -601,7 +660,7 @@ fun GfxExtremeHudScreen() {
                     .padding(start = 12.dp, top = 24.dp, bottom = 24.dp, end = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // MASTER STATUS RING (Identical to Dashboard)
+                // MASTER STATUS RING
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
                     Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = glowAlphaState.value * 360f }) {
                         drawArc(
@@ -641,7 +700,7 @@ fun GfxExtremeHudScreen() {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // SYSTEM TERMINAL (Identical to Dashboard)
+                // SYSTEM TERMINAL
                 Card(
                     modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, neonRed.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
                     colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
@@ -676,6 +735,49 @@ fun GfxExtremeHudScreen() {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CategoryButton(
+    category: TweakCategory,
+    neonColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(100.dp)
+            .clickable(onClick = onClick)
+            .border(1.dp, neonColor.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.4f)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(neonColor.copy(alpha = 0.1f), CircleShape)
+                    .border(1.dp, neonColor.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = category.icon, fontSize = 18.sp)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = category.title,
+                color = Color.White,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                letterSpacing = 1.sp
+            )
         }
     }
 }
