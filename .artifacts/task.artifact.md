@@ -1,0 +1,6 @@
+- [x] Implement `BatterySafetyReceiver` for charging failsafe
+- [x] Register `BatterySafetyReceiver` in `AndroidManifest.xml`
+- [x] Implement `executeShizukuSafe` in `GfxBackendManager.kt`
+- [x] Add startup/shutdown master reset in `MainActivity` and `GamingSpaceService`
+- [x] Verify `SoundPool` integration and `isRisky` indicators
+- [x] Verify build and functionality

@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +42,8 @@ import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import rikka.shizuku.Shizuku
 import kotlinx.coroutines.*
 
@@ -56,9 +59,11 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        // --- SAFETY BOOT CHECK: RESET RESOLUTION ---
-        // Ensures the device always returns to normal size on app launch/restart
-        GfxBackendManager.globalReset()
+        // --- SAFETY BOOT CHECK: RESET SYSTEM STATES ---
+        // Ensures the device clears any "ghost" states (Battery, ZRAM, etc.) on app launch
+        CoroutineScope(Dispatchers.IO).launch {
+            GfxBackendManager.runMasterReset(this@MainActivity)
+        }
 
         // Ads Initialization
         AdsManager.init(this)
@@ -131,6 +136,7 @@ fun AppNavigation() {
     var showSplash by remember { mutableStateOf(true) }
     var isActivated by remember { mutableStateOf(false) }
     var isDrawerOpen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         bottomBar = {
@@ -175,13 +181,27 @@ fun AppNavigation() {
 
             // Floating Hamburger Icon (Global)
             if (!showSplash) {
-                CyberHamburgerIcon(
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(16.dp)
                         .zIndex(150f),
-                    onClick = { isDrawerOpen = true }
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CyberResetIcon(
+                        onClick = {
+                            val scope = CoroutineScope(Dispatchers.Main)
+                            scope.launch {
+                                resetAllTweaks(context)
+                            }
+                        }
+                    )
+                    
+                    CyberHamburgerIcon(
+                        onClick = { isDrawerOpen = true }
+                    )
+                }
             }
 
             // Global Cyber Drawer
@@ -306,4 +326,53 @@ fun SwitcherItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
             letterSpacing = 1.sp
         )
     }
+}
+
+@Composable
+fun CyberResetIcon(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    Surface(
+        onClick = {
+            SoundEffectsManager.playOn()
+            SoundEffectsManager.performHaptic(haptic)
+            onClick()
+        },
+        modifier = modifier
+            .size(45.dp)
+            .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color.Cyan),
+        color = Color.Black.copy(alpha = 0.7f),
+        shape = CutCornerShape(8.dp),
+        border = BorderStroke(1.dp, Color.Cyan.copy(alpha = 0.5f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "Reset",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+suspend fun resetAllTweaks(context: android.content.Context) {
+    val prefs = context.getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE)
+    prefs.edit().clear().apply()
+    
+    // Play Welcome Sound
+    try {
+        android.media.MediaPlayer.create(context, R.raw.spider_intro).apply {
+            setVolume(1.0f, 1.0f)
+            start()
+            setOnCompletionListener { release() }
+        }
+    } catch (e: Exception) {
+        // Silently fail if audio issues
+    }
+    
+    // Run Master Shizuku Reset
+    GfxBackendManager.runMasterReset(context)
+    
+    // Show Toast
+    android.widget.Toast.makeText(context, "All settings reset to default!", android.widget.Toast.LENGTH_SHORT).show()
 }

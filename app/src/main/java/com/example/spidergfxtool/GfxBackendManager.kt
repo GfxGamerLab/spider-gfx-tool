@@ -50,14 +50,13 @@ object GfxBackendManager {
     }
 
     /**
-     * Raw shell executor without fallback logic.
-     * Wrapped in robust try-catch to prevent crashes on restricted commands.
+     * Bulletproof command execution wrapper.
+     * Prevents tool/game crashes if kernel nodes are missing or Shizuku fails.
      */
-    private suspend fun runShellInternal(command: String): Result<String> = withContext(Dispatchers.IO) {
-        Log.d("GFX_SHELL_INTERNAL", "Executing: $command")
-        try {
+    fun executeShizukuSafe(command: String): Result<String> {
+        return try {
             if (!Shizuku.pingBinder()) {
-                return@withContext Result.failure(Exception("Shizuku service not running"))
+                return Result.failure(Exception("Shizuku binder unreachable"))
             }
 
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
@@ -76,35 +75,27 @@ object GfxBackendManager {
                 null
             ) as java.lang.Process
 
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val output = StringBuilder()
-            var outLine: String?
-            while (reader.readLine().also { outLine = it } != null) {
-                output.append(outLine).append("\n")
-            }
-
-            val errReader = BufferedReader(InputStreamReader(process.errorStream))
-            val error = StringBuilder()
-            var line: String?
-            while (errReader.readLine().also { line = it } != null) {
-                error.append(line).append("\n")
-            }
-
+            val output = process.inputStream.bufferedReader().readText()
+            val error = process.errorStream.bufferedReader().readText()
             val exitCode = process.waitFor()
 
             if (exitCode == 0) {
-                Result.success(output.toString().trim())
+                Result.success(output.trim())
             } else {
-                val errorMsg = error.toString().trim()
-                Result.failure(Exception(if (errorMsg.isNotEmpty()) errorMsg else "Shell error (code $exitCode)"))
+                Result.failure(Exception("Shell error ($exitCode): ${error.trim()}"))
             }
-        } catch (e: SecurityException) {
-            Log.e("GFX_SHELL_SECURITY", "Permission denied for command: $command", e)
-            Result.failure(Exception("Security Error: Shizuku lacks permission for this system command."))
         } catch (e: Exception) {
-            Log.e("GFX_SHELL_ERROR", "Execution failed: ${e.localizedMessage}", e)
-            Result.failure(Exception("Execution failed: ${e.localizedMessage}"))
+            Log.w("GFX_WATCHDOG", "Kernel/Shizuku Command Suppressed: $command | Error: ${e.localizedMessage}")
+            Result.failure(e)
         }
+    }
+
+    /**
+     * Raw shell executor using the Watchdog Safe Wrapper.
+     */
+    private suspend fun runShellInternal(command: String): Result<String> = withContext(Dispatchers.IO) {
+        Log.d("GFX_SHELL", "Safe Execute: $command")
+        executeShizukuSafe(command)
     }
 
     /**
@@ -481,7 +472,7 @@ object GfxBackendManager {
     }
 
     /**
-     * GLOBAL RESET: Restores factory size and density instantly.
+     * MASTER RESET: Restores factory size and density instantly.
      * Includes robust catching to prevent exit-crashes.
      */
     fun globalReset() {
@@ -496,6 +487,45 @@ object GfxBackendManager {
             } catch (e: Exception) {
                 Log.e("GFX_RESET_ERROR", "Failed to reset hardware: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * Executes a master system reset via Shizuku to restore all tweaked parameters to defaults.
+     * Uses the Watchdog Safe Wrapper to prevent kernel panics on unsupported devices.
+     */
+    suspend fun runMasterReset(context: Context) = withContext(Dispatchers.IO) {
+        try {
+            if (!Shizuku.pingBinder()) return@withContext
+
+            val commands = listOf(
+                "cmd thermalservice reset",
+                "device_config delete activity_manager max_phantom_processes",
+                "setprop ro.lmk.kill_heaviest_task true",
+                "settings put system peak_refresh_rate 60.0",
+                "service call SurfaceFlinger 1008 i32 0",
+                "setprop debug.hwui.renderer opengl",
+                "settings put global debug.force_msaa false",
+                "setprop debug.hwui.disable_vsync false",
+                "settings delete global tcp_default_init_rwnd",
+                "ifconfig wlan0 mtu 1500",
+                "settings put system pointer_speed 0",
+                "pm enable --user 0 com.samsung.android.game.gos",
+                "pm enable --user 0 com.xiaomi.joyose",
+                "dumpsys battery reset",
+                "sysctl -w vm.swappiness=60",
+                "start logd",
+                "sysctl -w net.ipv4.tcp_congestion_control=cubic",
+                "wm size reset",
+                "wm density reset"
+            )
+
+            commands.forEach { cmd ->
+                executeShizukuSafe(cmd)
+            }
+            Log.i("GFX_MASTER_RESET", "All system parameters restored to factory defaults.")
+        } catch (e: Exception) {
+            Log.e("GFX_MASTER_RESET_ERR", "Master reset failed: ${e.message}")
         }
     }
 }

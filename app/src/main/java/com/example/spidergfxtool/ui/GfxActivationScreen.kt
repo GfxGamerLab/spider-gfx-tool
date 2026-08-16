@@ -156,7 +156,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                         letterSpacing = 8.sp
                     )
                     Text(
-                        text = "V3.0 STABILITY PROTOCOL", 
+                        text = "V0.4 STABILITY PROTOCOL", 
                         color = Color(0xFFFF3131).copy(alpha = 0.7f), 
                         fontSize = 11.sp, 
                         fontWeight = FontWeight.Bold,

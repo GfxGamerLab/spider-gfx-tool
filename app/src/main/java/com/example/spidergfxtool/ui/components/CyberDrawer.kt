@@ -147,7 +147,7 @@ fun CyberDrawerOverlay(
                     }
                     
                     Text(
-                        text = "VERSION 4.5 STABLE",
+                        text = "VERSION 0.4 STABLE",
                         color = Color.White.copy(alpha = 0.2f),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
