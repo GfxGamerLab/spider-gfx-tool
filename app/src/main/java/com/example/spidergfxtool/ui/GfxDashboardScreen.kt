@@ -39,13 +39,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.example.spidergfxtool.GfxBackendManager
+import com.example.spidergfxtool.GfxConfigManager
 import com.example.spidergfxtool.R
 import com.example.spidergfxtool.SoundEffectsManager
 import com.example.spidergfxtool.AdsManager
-import com.example.spidergfxtool.ui.components.AnimatedSpiderWeb
-import com.example.spidergfxtool.ui.components.SocialIcon
-import com.example.spidergfxtool.ui.components.WhitelistOverlay
-import rikka.shizuku.Shizuku
+import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -89,53 +87,36 @@ fun GfxDashboardScreen() {
     }
 
     // Central Feedback Helper
-    val triggerFeedback = {
-        SoundEffectsManager.playOn()
+    val triggerFeedback = { isOn: Boolean ->
+        if (isOn) SoundEffectsManager.playOn() else SoundEffectsManager.playOff()
         SoundEffectsManager.performHaptic(haptic)
     }
 
     // --- MAPPED ACTION HANDLERS ---
     
     val onVersionSelected: (PubgVersion) -> Unit = { version ->
-        triggerFeedback()
+        triggerFeedback(true)
         selectedVersion = version
         statusText = "[SYSTEM] Selected Target: ${version.name}"
     }
 
     val onApplyFps: (Int) -> Unit = { fps ->
-        triggerFeedback()
+        triggerFeedback(true)
         if (!isConnected) {
             Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
         } else {
             scope.launch {
                 isProcessing = true
                 try {
-                    val url = when(fps) {
-                        60 -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/60FPS.zip"
-                        90 -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/90FPS.zip"
-                        120 -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/120FPS.zip"
-                        else -> "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/3.0version/120FPS.zip"
-                    }
-                    val fileName = when(fps) {
-                        60 -> "60FPS_v3.zip"
-                        90 -> "90FPS_v3.zip"
-                        else -> "120FPS_v3.zip"
-                    }
+                    val fpsLabel = "${fps}FPS"
+                    statusText = "[SYSTEM] Initializing $fpsLabel v0.5 Engine..."
                     
-                    statusText = "[SYSTEM] Initializing $fps FPS Engine..."
-                    GfxBackendManager.applyFpsConfig(
-                        context = context,
-                        downloadUrl = url,
-                        fileName = fileName,
-                        targetPackage = selectedVersion.packageName
+                    GfxConfigManager.applyFpsConfig(
+                        fps = fpsLabel,
+                        targetPackage = selectedVersion.packageName,
+                        context = context
                     ) { log ->
                         statusText += "\n$log"
-                    }.onSuccess {
-                        statusText += "\n[SUCCESS] $fps FPS Engine Activated!"
-                        Toast.makeText(context, "$fps FPS Optimized!", Toast.LENGTH_LONG).show()
-                    }.onFailure { e ->
-                        statusText += "\n[ERROR] Operation Failed: ${e.message}"
-                        Toast.makeText(context, "Failed to apply $fps FPS", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
                     statusText += "\n[CRITICAL] Error: ${e.message}"
@@ -160,12 +141,14 @@ fun GfxDashboardScreen() {
         animationSpec = infiniteRepeatable(tween(4000, 1000), RepeatMode.Reverse), label = "C2"
     )
 
-    val neonCyan = Color(0xFF00FFFF)
-    val neonRed = Color(0xFFFF3131)
-
     val glowAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f, targetValue = 1.0f,
         animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "Neon"
+    )
+
+    val radarRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart), label = "Radar"
     )
 
     // LANDSCAPE HUD ROOT
@@ -200,7 +183,7 @@ fun GfxDashboardScreen() {
 
                 Text(
                     text = "TACTICAL OVERRIDES",
-                    color = neonCyan.copy(alpha = 0.8f),
+                    color = ElectricCyan.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
@@ -219,7 +202,7 @@ fun GfxDashboardScreen() {
                 // --- FPS SELECTION ENGINE ---
                 Text(
                     text = "FPS SELECTION ENGINE",
-                    color = neonCyan.copy(alpha = 0.8f),
+                    color = ElectricCyan.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
@@ -231,7 +214,7 @@ fun GfxDashboardScreen() {
                     HudTweakButton(
                         text = "APPLY 60 FPS",
                         subText = "STABLE SMOOTH PERFORMANCE",
-                        glowColor = neonCyan,
+                        glowColor = ElectricCyan,
                         alphaPulse = glowAlpha,
                         enabled = isConnected && !isProcessing,
                         onClick = { onApplyFps(60) }
@@ -240,7 +223,7 @@ fun GfxDashboardScreen() {
                     HudTweakButton(
                         text = "APPLY 90 FPS",
                         subText = "HIGH REFRESH OVERDRIVE",
-                        glowColor = neonCyan,
+                        glowColor = ElectricCyan,
                         alphaPulse = glowAlpha,
                         enabled = isConnected && !isProcessing,
                         onClick = { onApplyFps(90) }
@@ -249,7 +232,7 @@ fun GfxDashboardScreen() {
                     HudTweakButton(
                         text = "APPLY 120 FPS",
                         subText = "ULTIMATE ELITE FLUIDITY",
-                        glowColor = neonCyan,
+                        glowColor = ElectricCyan,
                         alphaPulse = glowAlpha,
                         enabled = isConnected && !isProcessing,
                         onClick = { onApplyFps(120) }
@@ -261,7 +244,7 @@ fun GfxDashboardScreen() {
                 // --- TACTICAL RAM SWEEPER ---
                 Text(
                     text = "TACTICAL RAM SWEEPER",
-                    color = neonCyan.copy(alpha = 0.8f),
+                    color = ElectricCyan.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
@@ -275,14 +258,14 @@ fun GfxDashboardScreen() {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("INCLUDE SYSTEM APPS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Switch(
+                    CyberpunkToggle(
                         checked = includeSystemApps,
                         onCheckedChange = { 
-                            triggerFeedback()
+                            triggerFeedback(it)
                             includeSystemApps = it
                             prefs.edit().putBoolean("ram_include_system", it).apply()
                         },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color.Red)
+                        activeColor = NeonCrimson
                     )
                 }
 
@@ -292,29 +275,36 @@ fun GfxDashboardScreen() {
                     Button(
                         onClick = {
                             AdsManager.showInterstitial(context as android.app.Activity) {
-                                triggerFeedback()
+                                triggerFeedback(true)
                                 if (!isConnected) {
                                     Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
                                     return@showInterstitial
                                 }
                                 scope.launch {
                                     isProcessing = true
-                                    statusText = "[SYSTEM] Initiating Tactical RAM Sweep..."
-                                    GfxBackendManager.runRamSweeper(
-                                        context = context,
-                                        includeSystem = includeSystemApps,
-                                        whitelist = currentWhitelist
-                                    ) { log ->
-                                        statusText += "\n$log"
+                                    try {
+                                        statusText = "[SYSTEM] Initiating Tactical RAM Sweep..."
+                                        GfxBackendManager.runRamSweeper(
+                                            context = context,
+                                            includeSystem = includeSystemApps,
+                                            whitelist = currentWhitelist
+                                        ) { log ->
+                                            statusText += "\n$log"
+                                        }
+                                        SoundEffectsManager.playOff() // Success/Finish sound
+                                    } catch (e: Exception) {
+                                        statusText += "\n[ERROR] RAM Sweep Failed: ${e.message}"
+                                    } finally {
+                                        isProcessing = false
                                     }
-                                    isProcessing = false
                                 }
                             }
                         },
                         modifier = Modifier.weight(1f).height(50.dp).graphicsLayer {
                             alpha = if (isConnected && !isProcessing) 1f else 0.5f
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        enabled = isConnected && !isProcessing,
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonCrimson),
                         shape = CutCornerShape(topStart = 8.dp, bottomEnd = 8.dp)
                     ) {
                         Text("KILL APPS", fontWeight = FontWeight.Black)
@@ -324,7 +314,7 @@ fun GfxDashboardScreen() {
 
                     Button(
                         onClick = { 
-                            triggerFeedback()
+                            triggerFeedback(true)
                             showWhitelist = true 
                         },
                         modifier = Modifier.height(50.dp),
@@ -344,6 +334,9 @@ fun GfxDashboardScreen() {
                     SocialIcon("YouTube", "https://youtube.com/@gfxgamerlab_1", Color.Red)
                     SocialIcon("Telegram", "https://t.me/gfxgamerlab", Color(0xFF24A1DE))
                 }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                GlobalCommunityFooter()
             }
 
             // --- RIGHT COLUMN: MASTER CONSOLE (Right Thumb) ---
@@ -356,9 +349,9 @@ fun GfxDashboardScreen() {
             ) {
                 // MASTER STATUS RING
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
-                    Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = glowAlpha * 360f }) {
+                    Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = radarRotation }) {
                         drawArc(
-                            color = if (isConnected) neonCyan else neonRed,
+                            color = if (isConnected) ElectricCyan else NeonCrimson,
                             startAngle = 0f,
                             sweepAngle = 280f,
                             useCenter = false,
@@ -367,10 +360,10 @@ fun GfxDashboardScreen() {
                     }
                     
                     Surface(
-                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) neonCyan else neonRed),
+                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
                         shape = CircleShape,
                         color = Color.Black.copy(alpha = 0.8f),
-                        border = BorderStroke(2.dp, if (isConnected) neonCyan else neonRed)
+                        border = BorderStroke(2.dp, if (isConnected) ElectricCyan else NeonCrimson)
                     ) {
                         Column(
                             verticalArrangement = Arrangement.Center,
@@ -378,7 +371,7 @@ fun GfxDashboardScreen() {
                         ) {
                             Text(
                                 text = if (isConnected) "ONLINE" else "OFFLINE",
-                                color = if (isConnected) neonCyan else neonRed,
+                                color = if (isConnected) ElectricCyan else NeonCrimson,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Black
                             )
@@ -395,18 +388,17 @@ fun GfxDashboardScreen() {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // SYSTEM TERMINAL
+                val terminalScrollState = rememberScrollState()
                 Card(
-                    modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, neonRed.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
+                    modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, NeonCrimson.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
                     colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
                     shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState())) {
-                        Text(
-                            text = if (isProcessing) statusText + "_" else statusText,
-                            color = neonRed,
-                            fontSize = 10.sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            lineHeight = 14.sp
+                    Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(terminalScrollState)) {
+                        TypewriterText(
+                            text = statusText,
+                            color = NeonCrimson,
+                            scrollState = terminalScrollState
                         )
                     }
                 }
@@ -420,7 +412,7 @@ fun GfxDashboardScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "NANO-SYSTEM V4.5 ACTIVE",
+                        text = "SECURE ENGINE PROTOCOL v0.5",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -521,7 +513,7 @@ fun VersionChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
         color = if (isSelected) Color(0xFF2A0000) else Color.Black.copy(alpha = 0.6f),
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) Color(0xFFFF3131) else Color.Gray.copy(alpha = 0.3f)
+            color = if (isSelected) NeonCrimson else Color.Gray.copy(alpha = 0.3f)
         ),
         shape = CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp)
     ) {

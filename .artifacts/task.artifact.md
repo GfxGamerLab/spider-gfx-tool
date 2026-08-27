@@ -1,6 +1,7 @@
-- [x] Implement `BatterySafetyReceiver` for charging failsafe
-- [x] Register `BatterySafetyReceiver` in `AndroidManifest.xml`
-- [x] Implement `executeShizukuSafe` in `GfxBackendManager.kt`
-- [x] Add startup/shutdown master reset in `MainActivity` and `GamingSpaceService`
-- [x] Verify `SoundPool` integration and `isRisky` indicators
-- [x] Verify build and functionality
+- [ ] Add Coil dependency to `build.gradle.kts`
+- [ ] Create `GlobalCommunityFooter` in `CyberComponents.kt`
+- [ ] Inject footer into `GfxActivationScreen.kt`
+- [ ] Inject footer into `GfxDashboardScreen.kt`
+- [ ] Inject footer into `GfxExtremeHudScreen.kt`
+- [ ] Inject footer into `GfxExtraFeaturesScreen.kt`
+- [ ] Verify build and UI

@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.example.spidergfxtool.AudioPlayerManager
 import com.example.spidergfxtool.R
 import com.example.spidergfxtool.SoundEffectsManager
+import com.example.spidergfxtool.ui.components.GlobalCommunityFooter
 import com.example.spidergfxtool.ui.components.SocialIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -156,7 +157,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                         letterSpacing = 8.sp
                     )
                     Text(
-                        text = "V0.4 STABILITY PROTOCOL", 
+                        text = "V0.5 STABILITY PROTOCOL", 
                         color = Color(0xFFFF3131).copy(alpha = 0.7f), 
                         fontSize = 11.sp, 
                         fontWeight = FontWeight.Bold,
@@ -296,6 +297,9 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                     SocialIcon("WA", "https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l", Color(0xFF25D366))
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+            GlobalCommunityFooter()
         }
     }
 }

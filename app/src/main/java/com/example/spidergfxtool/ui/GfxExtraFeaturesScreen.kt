@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -27,10 +30,11 @@ import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.SoundEffectsManager
 import com.example.spidergfxtool.AdsManager
 import com.example.spidergfxtool.SystemTelemetryViewModel
-import com.example.spidergfxtool.ui.components.AnimatedSpiderWeb
-import com.example.spidergfxtool.ui.components.CyberTweakCard
+import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.geometry.Offset
 import java.util.Locale
 
@@ -45,6 +49,7 @@ fun GfxExtraFeaturesScreen() {
     val telemetryState by telemetryViewModel.state
     
     var isProcessing by remember { mutableStateOf(false) }
+    var btLowLatency by remember { mutableStateOf(prefs.getBoolean("key_bt_latency", false)) }
     var statusText by remember { mutableStateOf("IDLE: SYSTEM READY\n>> WAITING FOR INPUT...") }
     
     // Smooth Slider State (Hoisted to prevent jumps)
@@ -56,8 +61,8 @@ fun GfxExtraFeaturesScreen() {
         onDispose { telemetryViewModel.stopMonitoring() }
     }
 
-    val triggerFeedback = {
-        SoundEffectsManager.playOn()
+    val triggerFeedback = { isOn: Boolean ->
+        if (isOn) SoundEffectsManager.playOn() else SoundEffectsManager.playOff()
         SoundEffectsManager.performHaptic(haptic)
     }
 
@@ -75,8 +80,11 @@ fun GfxExtraFeaturesScreen() {
         animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "Neon"
     )
 
-    val neonCyan = remember { Color(0xFF00FFFF) }
-    val neonRed = remember { Color(0xFFFF3131) }
+    val radarRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart), label = "Radar"
+    )
+
     val backgroundBrush = remember(color1, color2) { Brush.verticalGradient(listOf(color1, color2, Color.Black)) }
 
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
@@ -94,7 +102,7 @@ fun GfxExtraFeaturesScreen() {
             ) {
                 Text(
                     text = "ADVANCED HARDWARE MODS",
-                    color = neonCyan.copy(alpha = 0.8f),
+                    color = ElectricCyan.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
@@ -103,7 +111,7 @@ fun GfxExtraFeaturesScreen() {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // IPAD VIEW SECTION
-                CyberTweakCard(title = "IPAD VIEW & ASPECT RATIO", icon = "📐", statusHex = "0xIPD1") {
+                CyberTweakCard(title = "IPAD VIEW & ASPECT RATIO", icon = Icons.Outlined.AspectRatio, statusHex = "0xIPD1") {
                     Column(modifier = Modifier.padding(horizontal = 4.dp)) {
                         Text(
                             text = "IPAD VIEW SCALE: ${(resScale * 100).toInt()}%",
@@ -117,8 +125,8 @@ fun GfxExtraFeaturesScreen() {
                             onValueChange = { resScale = it },
                             valueRange = 0.7f..1.0f,
                             colors = SliderDefaults.colors(
-                                thumbColor = neonRed,
-                                activeTrackColor = neonRed,
+                                thumbColor = NeonCrimson,
+                                activeTrackColor = NeonCrimson,
                                 inactiveTrackColor = Color.DarkGray
                             ),
                             modifier = Modifier.fillMaxWidth()
@@ -129,7 +137,7 @@ fun GfxExtraFeaturesScreen() {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
-                                    triggerFeedback()
+                                    triggerFeedback(true)
                                     if (!isConnected) {
                                         Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
                                         return@Button
@@ -142,10 +150,11 @@ fun GfxExtraFeaturesScreen() {
                                         }
                                         prefs.edit().putFloat("ipad_view_scale", resScale).apply()
                                         isProcessing = false
+                                        triggerFeedback(false) // Success/Finish sound
                                     }
                                 },
                                 modifier = Modifier.weight(1f).height(50.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = neonRed.copy(alpha = 0.8f)),
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonCrimson.copy(alpha = 0.8f)),
                                 shape = CutCornerShape(8.dp)
                             ) {
                                 Text("APPLY IPAD VIEW", fontWeight = FontWeight.Black, fontSize = 11.sp)
@@ -155,7 +164,7 @@ fun GfxExtraFeaturesScreen() {
                             
                             Button(
                                 onClick = {
-                                    triggerFeedback()
+                                    triggerFeedback(true)
                                     if (!isConnected) {
                                         Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
                                         return@Button
@@ -169,6 +178,7 @@ fun GfxExtraFeaturesScreen() {
                                         resScale = 1.0f
                                         prefs.edit().putFloat("ipad_view_scale", 1.0f).apply()
                                         isProcessing = false
+                                        triggerFeedback(false) // Finish sound
                                     }
                                 },
                                 modifier = Modifier.weight(1f).height(50.dp),
@@ -182,12 +192,48 @@ fun GfxExtraFeaturesScreen() {
                     }
                 }
 
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // BLUETOOTH LOW-LATENCY
+                CyberTweakCard(title = "BLUETOOTH AUDIO ENFORCER", icon = Icons.Outlined.BluetoothAudio, statusHex = "0xBT99") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("BLUETOOTH AUDIO LOW-LATENCY", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                            Text("Forces high bit-rate and minimum buffer for gaming", color = Color.Gray, fontSize = 8.sp)
+                        }
+                        CyberpunkToggle(
+                            checked = btLowLatency,
+                            onCheckedChange = { 
+                                triggerFeedback(it)
+                                btLowLatency = it
+                                prefs.edit().putBoolean("key_bt_latency", it).apply()
+                                scope.launch(Dispatchers.IO) {
+                                    val cmd = if (it) {
+                                        "setprop persist.bluetooth.latency.low true && setprop persist.vendor.bt.a2dp.latency.low true"
+                                    } else {
+                                        "setprop persist.bluetooth.latency.low false"
+                                    }
+                                    GfxBackendManager.runShell(context, cmd)
+                                    withContext(Dispatchers.Main) {
+                                        statusText = if (it) "[SUCCESS] BT Low-Latency Enforced." else "[SYSTEM] BT Optimization Disabled."
+                                    }
+                                }
+                            },
+                            activeColor = NeonCrimson
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // --- ADVANCED SYSTEM DASHBOARD ---
                 Text(
                     text = "ADVANCED SYSTEM DASHBOARD",
-                    color = neonCyan.copy(alpha = 0.8f),
+                    color = ElectricCyan.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
@@ -195,62 +241,65 @@ fun GfxExtraFeaturesScreen() {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Dashboard Grid (2 Columns)
+                // Dashboard Grid (Expanded with new metrics)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // 1. BATTERY ENGINE
+                    TelemetryWideCard(
+                        title = "ADVANCED BATTERY ENGINE",
+                        icon = Icons.Outlined.BatteryStd,
+                        value = "${telemetryState.batteryPercent}% (${telemetryState.batteryHealth})",
+                        progress = telemetryState.batteryPercent / 100f,
+                        label = "HEALTH: ${telemetryState.batteryHealth} | VOLT: ${telemetryState.batteryVoltage} | TECH: ${telemetryState.batteryTech}"
+                    )
+
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // 2. DISPLAY ENGINE
                         TelemetryMiniCard(
                             modifier = Modifier.weight(1f),
-                            title = "DEVICE IDENTITY",
+                            title = "DISPLAY ENGINE",
                             data = listOf(
-                                "BRAND" to telemetryState.brand,
-                                "MODEL" to telemetryState.model,
-                                "OS" to "Android ${telemetryState.androidVersion}"
+                                "RESOLUTION" to telemetryState.resolution,
+                                "DENSITY" to telemetryState.density,
+                                "HDR" to telemetryState.hdrStatus
                             ),
-                            icon = "📱"
+                            icon = Icons.Outlined.Monitor
                         )
+                        // 3. PERFORMANCE ENGINE
                         TelemetryMiniCard(
                             modifier = Modifier.weight(1f),
                             title = "PERFORMANCE",
                             data = listOf(
                                 "LIVE FPS" to "${telemetryState.liveFps}",
                                 "LATENCY" to "${telemetryState.livePingMs}ms",
-                                "ARCH" to telemetryState.cpuArch
+                                "THROTTLE" to telemetryState.thermalStatus
                             ),
-                            icon = "🚀",
+                            icon = Icons.Outlined.Speed,
                             highlight = true
                         )
                     }
 
+                    // 4. CPU & GPU ENGINE
                     TelemetryWideCard(
-                        title = "MEMORY & RESOURCE MONITOR",
-                        icon = "🧠",
-                        value = "${String.format(Locale.US, "%.2f", telemetryState.totalRamGb - telemetryState.availRamGb)}GB / ${String.format(Locale.US, "%.2f", telemetryState.totalRamGb)}GB",
-                        progress = telemetryState.ramUsagePercent,
-                        label = "RAM USAGE"
+                        title = "CPU & GPU HARDWARE ENGINE",
+                        icon = Icons.Outlined.Hardware,
+                        value = "${telemetryState.cpuCores} CORES ACTIVE",
+                        progress = 1.0f,
+                        label = "RENDERER: ${telemetryState.gpuRenderer} | ARCH: ${telemetryState.cpuArch}"
                     )
 
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TelemetryMiniCard(
-                            modifier = Modifier.weight(1f),
-                            title = "POWER STATUS",
-                            data = listOf(
-                                "BATTERY" to "${telemetryState.batteryPercent}%",
-                                "TEMP" to "${telemetryState.batteryTemp}°C"
-                            ),
-                            icon = "🔋"
-                        )
-                        TelemetryMiniCard(
-                            modifier = Modifier.weight(1f),
-                            title = "HARDWARE",
-                            data = listOf(
-                                "STORAGE" to "${telemetryState.freeStorageGb}GB Free",
-                                "REFRESH" to "${(context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager).defaultDisplay.refreshRate.toInt()}Hz"
-                            ),
-                            icon = "🖥️"
-                        )
-                    }
+                    // 5. MEMORY MONITOR
+                    TelemetryWideCard(
+                        title = "MEMORY & RESOURCE MONITOR",
+                        icon = Icons.Outlined.Memory,
+                        value = "${String.format(Locale.US, "%.2f", telemetryState.totalRamGb - telemetryState.availRamGb)}GB / ${String.format(Locale.US, "%.2f", telemetryState.totalRamGb)}GB",
+                        progress = telemetryState.ramUsagePercent,
+                        label = "RAM USAGE | STORAGE FREE: ${telemetryState.freeStorageGb}GB"
+                    )
                 }
                 
+                Spacer(modifier = Modifier.height(32.dp))
+                GlobalCommunityFooter()
+
                 Spacer(modifier = Modifier.height(100.dp))
             }
 
@@ -262,11 +311,11 @@ fun GfxExtraFeaturesScreen() {
                     .padding(start = 12.dp, top = 24.dp, bottom = 24.dp, end = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // MASTER STATUS RING (Identical to Dashboard)
+                // MASTER STATUS RING (Electric Cyan)
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
-                    Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = glowAlpha * 360f }) {
+                    Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = radarRotation }) {
                         drawArc(
-                            color = if (isConnected) neonCyan else neonRed,
+                            color = if (isConnected) ElectricCyan else NeonCrimson,
                             startAngle = 0f,
                             sweepAngle = 280f,
                             useCenter = false,
@@ -275,10 +324,10 @@ fun GfxExtraFeaturesScreen() {
                     }
                     
                     Surface(
-                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) neonCyan else neonRed),
+                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
                         shape = CircleShape,
                         color = Color.Black.copy(alpha = 0.8f),
-                        border = BorderStroke(2.dp, if (isConnected) neonCyan else neonRed)
+                        border = BorderStroke(2.dp, if (isConnected) ElectricCyan else NeonCrimson)
                     ) {
                         Column(
                             verticalArrangement = Arrangement.Center,
@@ -286,7 +335,7 @@ fun GfxExtraFeaturesScreen() {
                         ) {
                             Text(
                                 text = if (isConnected) "ONLINE" else "OFFLINE",
-                                color = if (isConnected) neonCyan else neonRed,
+                                color = if (isConnected) ElectricCyan else NeonCrimson,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Black
                             )
@@ -302,19 +351,18 @@ fun GfxExtraFeaturesScreen() {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // SYSTEM TERMINAL (Identical to Dashboard)
+                // SYSTEM TERMINAL
+                val terminalScrollState = rememberScrollState()
                 Card(
-                    modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, neonRed.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
+                    modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, NeonCrimson.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
                     colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
                     shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
                 ) {
-                    Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState())) {
-                        Text(
-                            text = if (isProcessing) statusText + "_" else statusText,
-                            color = neonRed,
-                            fontSize = 10.sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            lineHeight = 14.sp
+                    Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(terminalScrollState)) {
+                        TypewriterText(
+                            text = statusText,
+                            color = NeonCrimson,
+                            scrollState = terminalScrollState
                         )
                     }
                 }
@@ -328,7 +376,7 @@ fun GfxExtraFeaturesScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "EXTRA MODULES SYNCED",
+                        text = "SECURE ENGINE PROTOCOL v0.5",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -346,26 +394,25 @@ fun TelemetryMiniCard(
     modifier: Modifier = Modifier,
     title: String,
     data: List<Pair<String, String>>,
-    icon: String,
+    icon: ImageVector,
     highlight: Boolean = false
 ) {
-    val neonRed = remember { Color(0xFFFF3131) }
     Card(
-        modifier = modifier.border(1.dp, if (highlight) neonRed else Color.White.copy(alpha = 0.1f), CutCornerShape(8.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.4f)),
+        modifier = modifier.border(1.dp, if (highlight) NeonCrimson else Color.White.copy(alpha = 0.1f), CutCornerShape(8.dp)),
+        colors = CardDefaults.cardColors(containerColor = CyberCardDark.copy(alpha = 0.8f)),
         shape = CutCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(icon, fontSize = 14.sp)
+                Icon(imageVector = icon, contentDescription = null, tint = if (highlight) NeonCrimson else Color.White, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(text = title, color = if (highlight) neonRed else Color.White.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                Text(text = title, color = if (highlight) NeonCrimson else Color.White.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Black)
             }
             Spacer(modifier = Modifier.height(8.dp))
             data.forEach { (label, value) ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(text = label, color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                    Text(text = value, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                    Text(text = value, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
             }
         }
@@ -375,25 +422,24 @@ fun TelemetryMiniCard(
 @Composable
 fun TelemetryWideCard(
     title: String,
-    icon: String,
+    icon: ImageVector,
     value: String,
     progress: Float,
     label: String
 ) {
-    val neonRed = remember { Color(0xFFFF3131) }
     Card(
         modifier = Modifier.fillMaxWidth().border(1.dp, Color.White.copy(alpha = 0.1f), CutCornerShape(8.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.4f)),
+        colors = CardDefaults.cardColors(containerColor = CyberCardDark.copy(alpha = 0.8f)),
         shape = CutCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(icon, fontSize = 14.sp)
+                    Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(text = title, color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Black)
                 }
-                Text(text = value, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                Text(text = value, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
             }
             Spacer(modifier = Modifier.height(10.dp))
             Text(text = label, color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
@@ -401,7 +447,7 @@ fun TelemetryWideCard(
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                color = neonRed,
+                color = if (title.contains("BATTERY")) ElectricCyan else NeonCrimson,
                 trackColor = Color.DarkGray
             )
         }

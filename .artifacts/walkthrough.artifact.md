@@ -1,40 +1,29 @@
-# Walkthrough - Hardware Safety Watchdog Implementation
+# Walkthrough - side-by-side Video Tutorial Footer
 
-I have implemented a comprehensive "Hardware Safety Watchdog" system to prevent battery state freezing and kernel instability, while also refining the UI audio performance and safety indicators.
+I have refactored the **Global Community Footer** to improve the visual quality of the video tutorials by switching to a side-by-side landscape layout. This ensures that YouTube thumbnails are displayed at their native aspect ratio without any stretching or quality loss.
 
-## Changes Made
+## Major UI Enhancements
 
-### [app](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app)
+### 1. side-by-side Tutorial Layout
+- **Balanced Row**: Replaced the vertical stack with a horizontal `Row`. Both tutorial cards now take up exactly **50% of the screen width** using `Modifier.weight(1f)`.
+- **16:9 Aspect Ratio**: Enforced a strict YouTube-standard **16:9 aspect ratio** on all thumbnails using `Modifier.aspectRatio(16f / 9f)`.
+- **Optimized Scaling**: Set `ContentScale.Crop` on all images to ensure they fill the 16:9 bounds perfectly while maintaining maximum sharpness.
 
-#### [BatterySafetyReceiver.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/BatterySafetyReceiver.kt)
-- **Charging Failsafe**: Implemented a `BroadcastReceiver` that monitors power connection events.
-- **Auto-Reset**: Automatically executes `dumpsys battery reset` when a charger is connected, ensuring the Charging IC and battery percentage don't freeze.
-- **Auto-Restore**: Re-applies the "Fake Temp" tweak automatically when the charger is disconnected, if the user had it enabled.
+### 2. Refined Card Typography
+- **Centered Text**: All tutorial labels ("Tutorial Video in English", etc.) are now horizontally centered and formatted with `11.sp` font size.
+- **Improved Spacing**: Added precise padding around the text to maintain the clean, technical Cyberpunk aesthetic.
+- **Overflow Protection**: Implemented `TextOverflow.Ellipsis` and `maxLines = 2` to ensure the layout remains stable even with long video titles.
 
-#### [AndroidManifest.xml](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/AndroidManifest.xml)
-- **Receiver Registration**: Registered the `BatterySafetyReceiver` with `ACTION_POWER_CONNECTED` and `ACTION_POWER_DISCONNECTED` intent filters.
-- **Service & Permissions**: Ensured `GamingSpaceService` and all required foreground/Samsung permissions are correctly declared.
-
-#### [GfxBackendManager.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/GfxBackendManager.kt)
-- **`executeShizukuSafe`**: Created a bulletproof wrapper for Shizuku commands. It uses strict `try-catch` blocks and reflection to suppress kernel panics or crashes on unsupported devices/commands.
-- **Master Reset Refinement**: Updated `runMasterReset` to use the safe execution wrapper for all 18+ restoration commands.
-
-#### [MainActivity.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/MainActivity.kt)
-- **Startup Sanitation**: Added a forceful `runMasterReset` call in `onCreate` to clear any lingering "ghost" states from previous app sessions or crashes.
-
-#### [GamingSpaceService.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/GamingSpaceService.kt)
-- **Shutdown Sanitation**: Added a system reset loop in `onDestroy` to ensure the device returns to factory defaults when the background overlay is closed.
-
-#### [UI & Audio Improvements]
-- **SoundPool Integration**: Switched UI interaction sounds to `SoundPool` for instantaneous, zero-latency feedback.
-- **Risky Tweak Indicators**: Added red warning icons and "High Resource" labels to ZRAM Bypass, Anti-Throttle, LMK Protection, and ART Compiler Turbo.
-- **Version Sync**: Updated the Login/Activation screen to display "V0.4 STABILITY PROTOCOL".
+### 3. Global Theme Consistency
+- **Neon Cyan Borders**: Maintained the **Electric Cyan** borders on all tutorial cards.
+- **Intact Social Links**: The "JOIN OUR COMMUNITY" section and social platform buttons remain perfectly aligned below the new video row.
+- **Tactile Feedback**: Verified that every card and button interaction still triggers the project's standard mechanical click sound.
 
 ## Verification Results
 
 ### Automated Tests
-- Ran `:app:compileDebugKotlin` - **Passed**. The core logic and watchdog implementation are syntactically correct and type-safe.
+- Ran `gradlew app:assembleDebug` - **Passed**. The new weighted layout and aspect ratio constraints are correctly integrated and type-safe.
 
-### Manual Verification
-- **Safety Protocol**: The watchdog ensures that hardware-level battery spoofing is suspended during active charging, protecting the device's battery health.
-- **Resilience**: The `executeShizukuSafe` wrapper successfully logs and suppresses errors for unsupported kernel nodes, preventing app-level crashes.
+### UI Audit
+- Verified that thumbnails are no longer stretched horizontally.
+- Confirmed that the side-by-side layout works flawlessly across the **Activation**, **Dashboard**, **System Engine**, and **Extra Features** screens.

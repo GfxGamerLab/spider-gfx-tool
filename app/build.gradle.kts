@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.spidergfxtool"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.4"
+        versionCode = 3
+        versionName = "0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -62,4 +62,7 @@ dependencies {
 
     // Material Icons Extended
     implementation("androidx.compose.material:material-icons-extended")
+
+    // Coil for Image Loading
+    implementation("io.coil-kt:coil-compose:2.7.0")
 }

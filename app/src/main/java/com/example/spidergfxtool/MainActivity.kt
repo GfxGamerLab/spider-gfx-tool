@@ -16,6 +16,7 @@ import com.example.spidergfxtool.ui.GfxActivationScreen
 import com.example.spidergfxtool.ui.GfxDashboardScreen
 import com.example.spidergfxtool.ui.GfxExtremeHudScreen
 import com.example.spidergfxtool.ui.GfxExtraFeaturesScreen
+import com.example.spidergfxtool.ui.AppHibernationScreen
 import com.example.spidergfxtool.ui.SpiderSplashScreen
 import com.example.spidergfxtool.ui.components.CyberDrawerOverlay
 import com.example.spidergfxtool.ui.theme.SpiderGFXToolTheme
@@ -119,8 +120,12 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         // Ensure resources are released safely
         try {
-            GfxBackendManager.globalReset() // AUTO-RESET ON APP CLOSE
-            GfxBackendManager.destroy()
+            // FORCE BATTERY RESET ON SHUTDOWN
+            CoroutineScope(Dispatchers.IO).launch {
+                GfxBackendManager.runShell(null, "dumpsys battery reset")
+                GfxBackendManager.globalReset() // AUTO-RESET ON APP CLOSE
+                GfxBackendManager.destroy()
+            }
             AudioPlayerManager.stopAndRelease()
             SoundEffectsManager.release()
         } catch (e: Exception) {
@@ -129,7 +134,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class DashboardPage { GFX_TOOL, SYSTEM_ENGINE, EXTRA_FEATURES }
+enum class DashboardPage { GFX_TOOL, SYSTEM_ENGINE, EXTRA_FEATURES, HIBERNATION }
 
 @Composable
 fun AppNavigation() {
@@ -224,10 +229,10 @@ fun CyberHamburgerIcon(modifier: Modifier = Modifier, onClick: () -> Unit) {
         },
         modifier = modifier
             .size(45.dp)
-            .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color.Red),
+            .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color(0xFFFF1744)),
         color = Color.Black.copy(alpha = 0.7f),
         shape = CutCornerShape(8.dp),
-        border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, Color(0xFFFF1744).copy(alpha = 0.5f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             Column(
@@ -266,6 +271,9 @@ fun DashboardNavigationWrapper() {
                 DashboardPage.GFX_TOOL -> GfxDashboardScreen()
                 DashboardPage.SYSTEM_ENGINE -> GfxExtremeHudScreen()
                 DashboardPage.EXTRA_FEATURES -> GfxExtraFeaturesScreen()
+                DashboardPage.HIBERNATION -> AppHibernationScreen { 
+                    currentPage = DashboardPage.SYSTEM_ENGINE 
+                }
             }
         }
     }
@@ -281,7 +289,7 @@ fun CyberNavigationSwitcher(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
             .background(Color.Black.copy(alpha = 0.8f))
-            .border(1.dp, Color(0xFFFF3131).copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+            .border(1.dp, Color(0xFFFF1744).copy(alpha = 0.5f), RoundedCornerShape(24.dp))
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -300,6 +308,11 @@ fun CyberNavigationSwitcher(
             isSelected = currentPage == DashboardPage.EXTRA_FEATURES,
             onClick = { onPageSelected(DashboardPage.EXTRA_FEATURES) }
         )
+        SwitcherItem(
+            text = "HIBERNATION",
+            isSelected = currentPage == DashboardPage.HIBERNATION,
+            onClick = { onPageSelected(DashboardPage.HIBERNATION) }
+        )
     }
 }
 
@@ -309,7 +322,7 @@ fun SwitcherItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) Color(0xFFFF3131) else Color.Transparent)
+            .background(if (isSelected) Color(0xFFFF1744) else Color.Transparent)
             .clickable {
                 SoundEffectsManager.playOn()
                 SoundEffectsManager.performHaptic(haptic)
@@ -321,7 +334,7 @@ fun SwitcherItem(text: String, isSelected: Boolean, onClick: () -> Unit) {
         Text(
             text = text,
             color = if (isSelected) Color.White else Color.Gray,
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Black,
             letterSpacing = 1.sp
         )
@@ -339,10 +352,10 @@ fun CyberResetIcon(modifier: Modifier = Modifier, onClick: () -> Unit) {
         },
         modifier = modifier
             .size(45.dp)
-            .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color.Cyan),
+            .shadow(10.dp, CutCornerShape(8.dp), spotColor = Color(0xFF00E5FF)),
         color = Color.Black.copy(alpha = 0.7f),
         shape = CutCornerShape(8.dp),
-        border = BorderStroke(1.dp, Color.Cyan.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, Color(0xFF00E5FF).copy(alpha = 0.5f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(

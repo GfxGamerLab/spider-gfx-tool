@@ -1,45 +1,40 @@
-# Implementation Plan - Hardware Safety Watchdog & UI Audio Refinement
+# Implementation Plan - Global Community Footer Integration
 
-This plan implements a "Hardware Safety Watchdog" system to prevent battery state freezing and kernel panics, and finishes the UI/Audio architecture improvements (SoundPool & Risky Tweak indicators).
+This plan integrates a high-quality "Tutorial & Social Links Footer" across the main screens of the Spider GFX Tool, featuring video thumbnails and stylized social buttons.
 
 ## Proposed Changes
 
 ### [app](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app)
 
-#### [NEW] [BatterySafetyReceiver.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/BatterySafetyReceiver.kt)
-- Create a `BroadcastReceiver` that listens for `Intent.ACTION_POWER_CONNECTED` and `Intent.ACTION_POWER_DISCONNECTED`.
-- **Connected**: Execute `dumpsys battery reset` via Shizuku and show a Toast.
-- **Disconnected**: Check `SharedPreferences` for `key_fake_temp`. If true, re-apply `dumpsys battery set temp 250`.
+#### [MODIFY] [build.gradle.kts](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/build.gradle.kts)
+- Add `io.coil-kt:coil-compose:2.7.0` to dependencies for image loading.
 
-#### [MODIFY] [AndroidManifest.xml](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/AndroidManifest.xml)
-- Register `BatterySafetyReceiver` with the appropriate intent filters.
+#### [MODIFY] [CyberComponents.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/ui/components/CyberComponents.kt)
+- **New Composable**: `GlobalCommunityFooter`.
+    - **Video Tutorials**: Two `Card`s with `AsyncImage` thumbnails for English and Hindi/Urdu tutorials.
+    - **Social Links**: "JOIN OUR COMMUNITY" header with a `Row` of three buttons for YouTube, Telegram, and WhatsApp.
+    - **Logic**: Use `Intent.ACTION_VIEW` for all external links.
 
-#### [MODIFY] [SoundEffectsManager.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/SoundEffectsManager.kt)
-- Ensure `SoundPool` is used for switch toggles (`switch_on`, `switch_off`).
-- Use `SoundPool.Builder().setMaxStreams(4).build()`.
+#### [MODIFY] [GfxActivationScreen.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/ui/GfxActivationScreen.kt)
+- Append `GlobalCommunityFooter()` at the end of the scrollable `Column`.
 
-#### [MODIFY] [GfxBackendManager.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/GfxBackendManager.kt)
-- Implement `executeShizukuSafe(command: String)`:
-    - Wraps `Shizuku.newProcess` in a `try-catch`.
-    - Logs errors if the command fails or is unsupported by the kernel.
-- Update `runShellInternal` to use this safe execution pattern.
-
-#### [MODIFY] [MainActivity.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/MainActivity.kt)
-- In `onCreate()`, call `GfxBackendManager.runMasterReset(this)` to clear ghost states on startup.
-
-#### [MODIFY] [GamingSpaceService.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/GamingSpaceService.kt)
-- In `onDestroy()`, call `GfxBackendManager.runMasterReset(this)` to ensure a clean exit.
+#### [MODIFY] [GfxDashboardScreen.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/ui/GfxDashboardScreen.kt)
+- Append `GlobalCommunityFooter()` at the end of the scrollable `Column`.
 
 #### [MODIFY] [GfxExtremeHudScreen.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/ui/GfxExtremeHudScreen.kt)
-- Ensure `CyberTweakToggleRow` uses `SoundEffectsManager.playOn()` and `playOff()` correctly in `onCheckedChange`.
-- Verify `isRisky = true` is passed for: ZRAM Bypass, Anti-Throttle, LMK Protection, and ART Compiler Turbo.
+- Append `GlobalCommunityFooter()` at the end of the scrollable `Column` in both Dashboard and Detail views (or just Dashboard depending on design preference, but request says "at the bottom").
+
+#### [MODIFY] [GfxExtraFeaturesScreen.kt](file:///C:/Users/123/AndroidStudioProjects/SpiderGFXTool/app/src/main/java/com/example/spidergfxtool/ui/GfxExtraFeaturesScreen.kt)
+- Append `GlobalCommunityFooter()` at the end of the scrollable `Column`.
 
 ## Verification Plan
 
 ### Automated Tests
-- Run `gradlew app:assembleDebug` to verify compilation.
+- Run `gradlew app:assembleDebug` to verify compilation and dependency resolution.
 
 ### Manual Verification
-- **Watchdog**: Plug/unplug charger and verify battery state reset/re-apply.
-- **Audio**: Toggle switches and verify instant `SoundPool` feedback.
-- **Risky UI**: Confirm warning indicators are visible on specified tweaks.
+- **UI Audit**: Navigate to each of the 4 screens and scroll to the bottom to verify:
+    - Thumbnails load correctly via Coil.
+    - Text labels match the requested strings.
+    - "JOIN OUR COMMUNITY" section is styled correctly.
+- **Intent Testing**: Click each tutorial card and social button to ensure they launch the correct YouTube videos or social channels.

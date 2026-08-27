@@ -6,8 +6,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.StatFs
+import android.util.DisplayMetrics
 import android.view.Choreographer
+import android.view.WindowManager
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -31,7 +34,18 @@ data class SystemTelemetryState(
     val batteryPercent: Int = 0,
     val batteryTemp: Float = 0f,
     val liveFps: Int = 0,
-    val livePingMs: Int = 0
+    val livePingMs: Int = 0,
+    
+    // Advanced Metrics
+    val batteryHealth: String = "Unknown",
+    val batteryVoltage: String = "0.0V",
+    val batteryTech: String = "Unknown",
+    val resolution: String = "Unknown",
+    val density: String = "Unknown",
+    val hdrStatus: String = "Standard",
+    val cpuCores: Int = Runtime.getRuntime().availableProcessors(),
+    val gpuRenderer: String = Build.HARDWARE,
+    val thermalStatus: String = "Normal"
 )
 
 class SystemTelemetryViewModel : ViewModel() {
@@ -66,8 +80,8 @@ class SystemTelemetryViewModel : ViewModel() {
     }
 
     private fun updateStaticSpecs(context: Context) {
-        val memoryInfo = ActivityManager.MemoryInfo()
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
 
         val totalRam = memoryInfo.totalMem.toDouble() / (1024 * 1024 * 1024)
@@ -75,16 +89,37 @@ class SystemTelemetryViewModel : ViewModel() {
         val stat = StatFs(context.filesDir.absolutePath)
         val totalStorage = (stat.blockCountLong * stat.blockSizeLong) / (1024 * 1024 * 1024)
 
+        // Display Specs
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val displayMetrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        val resStr = "${displayMetrics.widthPixels} x ${displayMetrics.heightPixels}"
+        val densityStr = "${displayMetrics.densityDpi} DPI"
+
+        // HDR Support
+        var hdrStr = "Standard"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            @Suppress("DEPRECATION")
+            val hdrCaps = windowManager.defaultDisplay.hdrCapabilities
+            if (hdrCaps?.supportedHdrTypes?.isNotEmpty() == true) {
+                hdrStr = "HDR Supported"
+            }
+        }
+
         _state.value = _state.value.copy(
             totalRamGb = String.format(Locale.US, "%.2f", totalRam).toDouble(),
-            totalStorageGb = totalStorage
+            totalStorageGb = totalStorage,
+            resolution = resStr,
+            density = densityStr,
+            hdrStatus = hdrStr
         )
     }
 
     private suspend fun updateDynamicSpecs(context: Context) {
         // RAM Update
-        val memoryInfo = ActivityManager.MemoryInfo()
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memoryInfo)
         val availRam = memoryInfo.availMem.toDouble() / (1024 * 1024 * 1024)
         val usedRam = memoryInfo.totalMem - memoryInfo.availMem
@@ -98,6 +133,37 @@ class SystemTelemetryViewModel : ViewModel() {
         val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val temp = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10f
+        
+        val health = batteryStatus?.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: BatteryManager.BATTERY_HEALTH_UNKNOWN
+        val healthStr = when (health) {
+            BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+            BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+            BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+            BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+            BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failure"
+            BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+            else -> "Unknown"
+        }
+        
+        val voltage = batteryStatus?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
+        val voltageStr = String.format(Locale.US, "%.1fV", voltage / 1000f)
+        val tech = batteryStatus?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: "Unknown"
+
+        // Thermal Status
+        var thermalStr = "Normal"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val status = powerManager.currentThermalStatus
+            thermalStr = when (status) {
+                PowerManager.THERMAL_STATUS_NONE -> "Normal"
+                PowerManager.THERMAL_STATUS_LIGHT -> "Moderate"
+                PowerManager.THERMAL_STATUS_MODERATE -> "Severe"
+                PowerManager.THERMAL_STATUS_SEVERE -> "Critical"
+                PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
+                else -> "Normal"
+            }
+        }
 
         // Ping Update
         val ping = getPingLatency()
@@ -109,6 +175,10 @@ class SystemTelemetryViewModel : ViewModel() {
                 freeStorageGb = freeStorage,
                 batteryPercent = level,
                 batteryTemp = temp,
+                batteryHealth = healthStr,
+                batteryVoltage = voltageStr,
+                batteryTech = tech,
+                thermalStatus = thermalStr,
                 livePingMs = ping
             )
         }

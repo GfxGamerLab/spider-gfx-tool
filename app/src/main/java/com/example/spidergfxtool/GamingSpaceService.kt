@@ -4,8 +4,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
@@ -15,6 +17,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -31,8 +34,8 @@ import kotlinx.coroutines.*
 
 /**
  * Advanced Gaming Space Service hosting Compose inside WindowManager.
- * Implements Lifecycle, ViewModelStore, and SavedStateRegistry owners directly
- * to eliminate ViewTree crashes.
+ * Implements Lifecycle, ViewModelStore, and SavedStateRegistry owners directly.
+ * Includes a dynamic Hardware Safety Watchdog for battery protection.
  */
 class GamingSpaceService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -53,6 +56,30 @@ class GamingSpaceService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
     private val telemetryViewModel = SystemTelemetryViewModel()
+
+    // --- Watchdog Receiver ---
+    private val batteryWatchdog = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val prefs = context.getSharedPreferences("spider_gfx_prefs", Context.MODE_PRIVATE)
+            when (intent.action) {
+                Intent.ACTION_POWER_CONNECTED -> {
+                    serviceScope.launch(Dispatchers.IO) {
+                        GfxBackendManager.runShell(null, "dumpsys battery reset")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Safety: Real Battery State Restored for Charging", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                Intent.ACTION_POWER_DISCONNECTED -> {
+                    if (prefs.getBoolean("key_fake_temp", false)) {
+                        serviceScope.launch(Dispatchers.IO) {
+                            GfxBackendManager.runShell(null, "dumpsys battery set temp 250")
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     companion object {
         const val ACTION_STOP_SERVICE = "STOP_GAMING_SPACE"
@@ -85,11 +112,18 @@ class GamingSpaceService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         
-        // 2. Start Foreground Service
+        // 2. Register Watchdog
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_POWER_CONNECTED)
+            addAction(Intent.ACTION_POWER_DISCONNECTED)
+        }
+        registerReceiver(batteryWatchdog, filter)
+
+        // 3. Start Foreground Service
         createNotificationChannel()
         startServiceForeground()
         
-        // 3. Start Engines
+        // 4. Start Engines
         telemetryViewModel.startMonitoring(this)
         showOverlay()
         startAutoBoostLoop()
@@ -192,20 +226,26 @@ class GamingSpaceService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
     override fun onDestroy() {
         // --- WATCHDOG: Master Reset on Shutdown ---
         serviceScope.launch(Dispatchers.IO) {
+            GfxBackendManager.runShell(null, "dumpsys battery reset")
             GfxBackendManager.runMasterReset(this@GamingSpaceService)
         }
 
-        // 1. Cleanup Engines
+        // 1. Unregister Watchdog
+        try {
+            unregisterReceiver(batteryWatchdog)
+        } catch (e: Exception) { }
+
+        // 2. Cleanup Engines
         telemetryViewModel.stopMonitoring()
         serviceJob.cancel()
         
-        // 2. Remove Overlay
+        // 3. Remove Overlay
         rootView?.let {
             windowManager.removeView(it)
             rootView = null
         }
         
-        // 3. Cleanup Lifecycle Owners
+        // 4. Cleanup Lifecycle Owners
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         store.clear()
         
