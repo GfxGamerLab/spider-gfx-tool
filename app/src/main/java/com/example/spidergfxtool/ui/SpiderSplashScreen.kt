@@ -1,5 +1,6 @@
 package com.example.spidergfxtool.ui
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -10,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
@@ -104,14 +106,20 @@ fun SpiderSplashScreen(onAnimationComplete: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = fullText,
-                color = Color.White.copy(alpha = 0.6f * alpha),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 3.sp,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-            )
+            // Subtitle with smooth fade-in
+            AnimatedVisibility(
+                visible = startAnimation,
+                enter = fadeIn(tween(1000, 500))
+            ) {
+                Text(
+                    text = fullText,
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 3.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+            }
             
             Spacer(modifier = Modifier.height(40.dp))
             
@@ -158,16 +166,38 @@ fun CyberWaveform(modifier: Modifier, color: Color) {
 @Composable
 fun SpiderLogo(modifier: Modifier = Modifier, glowIntensity: Float) {
     Box(
-        modifier = modifier.graphicsLayer {
-            alpha = 0.7f + (0.3f * glowIntensity)
-        },
+        modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
+        // Pulsating Neon Ring
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                color = Color(0xFFFF3131).copy(alpha = 0.2f * glowIntensity),
+                radius = size.minDimension / 2,
+                style = Stroke(width = 8f)
+            )
+            drawCircle(
+                color = Color(0xFFFF3131).copy(alpha = 0.5f * glowIntensity),
+                radius = size.minDimension / 2.1f,
+                style = Stroke(width = 2f)
+            )
+        }
+
+        // Inner logo glow
+        Box(
+            modifier = Modifier
+                .fillMaxSize(0.7f)
+                .blur(15.dp)
+                .background(Color(0xFFFF3131).copy(alpha = 0.3f * glowIntensity), CircleShape)
+        )
+        
         Image(
             painter = painterResource(id = R.mipmap.ic_launcher_foreground),
             contentDescription = "Spider Logo",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit
+            modifier = Modifier
+                .fillMaxSize(0.9f)
+                .clip(CircleShape), // Fix: Apply circular clip
+            contentScale = ContentScale.Crop // Fix: Fill the circle
         )
     }
 }

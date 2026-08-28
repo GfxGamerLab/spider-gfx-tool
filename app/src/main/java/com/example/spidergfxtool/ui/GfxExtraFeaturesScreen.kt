@@ -49,7 +49,7 @@ fun GfxExtraFeaturesScreen() {
     val telemetryState by telemetryViewModel.state
     
     var isProcessing by remember { mutableStateOf(false) }
-    var btLowLatency by remember { mutableStateOf(prefs.getBoolean("key_bt_latency", false)) }
+    
     var statusText by remember { mutableStateOf("IDLE: SYSTEM READY\n>> WAITING FOR INPUT...") }
     
     // Smooth Slider State (Hoisted to prevent jumps)
@@ -97,7 +97,7 @@ fun GfxExtraFeaturesScreen() {
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(1.1f)
-                    .padding(start = 24.dp, top = 24.dp, bottom = 24.dp, end = 12.dp)
+                    .padding(start = 24.dp, top = 12.dp, bottom = 12.dp, end = 12.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
@@ -108,7 +108,7 @@ fun GfxExtraFeaturesScreen() {
                     letterSpacing = 2.sp
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // IPAD VIEW SECTION
                 CyberTweakCard(title = "IPAD VIEW & ASPECT RATIO", icon = Icons.Outlined.AspectRatio, statusHex = "0xIPD1") {
@@ -129,10 +129,10 @@ fun GfxExtraFeaturesScreen() {
                                 activeTrackColor = NeonCrimson,
                                 inactiveTrackColor = Color.DarkGray
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().height(24.dp)
                         )
                         
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Button(
@@ -153,11 +153,11 @@ fun GfxExtraFeaturesScreen() {
                                         triggerFeedback(false) // Success/Finish sound
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(50.dp),
+                                modifier = Modifier.weight(1f).height(38.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = NeonCrimson.copy(alpha = 0.8f)),
                                 shape = CutCornerShape(8.dp)
                             ) {
-                                Text("APPLY IPAD VIEW", fontWeight = FontWeight.Black, fontSize = 11.sp)
+                                Text("APPLY IPAD VIEW", fontWeight = FontWeight.Black, fontSize = 10.sp)
                             }
                             
                             Spacer(modifier = Modifier.width(8.dp))
@@ -181,54 +181,18 @@ fun GfxExtraFeaturesScreen() {
                                         triggerFeedback(false) // Finish sound
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(50.dp),
+                                modifier = Modifier.weight(1f).height(38.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray.copy(alpha = 0.5f)),
                                 shape = CutCornerShape(8.dp),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
                             ) {
-                                Text("RESET RESOLUTION", fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.Center)
+                                Text("RESET RESOLUTION", fontWeight = FontWeight.Bold, fontSize = 9.sp, textAlign = TextAlign.Center)
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // BLUETOOTH LOW-LATENCY
-                CyberTweakCard(title = "BLUETOOTH AUDIO ENFORCER", icon = Icons.Outlined.BluetoothAudio, statusHex = "0xBT99") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("BLUETOOTH AUDIO LOW-LATENCY", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Black)
-                            Text("Forces high bit-rate and minimum buffer for gaming", color = Color.Gray, fontSize = 8.sp)
-                        }
-                        CyberpunkToggle(
-                            checked = btLowLatency,
-                            onCheckedChange = { 
-                                triggerFeedback(it)
-                                btLowLatency = it
-                                prefs.edit().putBoolean("key_bt_latency", it).apply()
-                                scope.launch(Dispatchers.IO) {
-                                    val cmd = if (it) {
-                                        "setprop persist.bluetooth.latency.low true && setprop persist.vendor.bt.a2dp.latency.low true"
-                                    } else {
-                                        "setprop persist.bluetooth.latency.low false"
-                                    }
-                                    GfxBackendManager.runShell(context, cmd)
-                                    withContext(Dispatchers.Main) {
-                                        statusText = if (it) "[SUCCESS] BT Low-Latency Enforced." else "[SYSTEM] BT Optimization Disabled."
-                                    }
-                                }
-                            },
-                            activeColor = NeonCrimson
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // --- ADVANCED SYSTEM DASHBOARD ---
                 Text(
@@ -312,7 +276,7 @@ fun GfxExtraFeaturesScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // MASTER STATUS RING (Electric Cyan)
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(100.dp)) {
                     Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = radarRotation }) {
                         drawArc(
                             color = if (isConnected) ElectricCyan else NeonCrimson,
@@ -324,7 +288,7 @@ fun GfxExtraFeaturesScreen() {
                     }
                     
                     Surface(
-                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
+                        modifier = Modifier.size(70.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
                         shape = CircleShape,
                         color = Color.Black.copy(alpha = 0.8f),
                         border = BorderStroke(2.dp, if (isConnected) ElectricCyan else NeonCrimson)
@@ -349,7 +313,7 @@ fun GfxExtraFeaturesScreen() {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // SYSTEM TERMINAL
                 val terminalScrollState = rememberScrollState()
@@ -402,17 +366,17 @@ fun TelemetryMiniCard(
         colors = CardDefaults.cardColors(containerColor = CyberCardDark.copy(alpha = 0.8f)),
         shape = CutCornerShape(8.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(imageVector = icon, contentDescription = null, tint = if (highlight) NeonCrimson else Color.White, modifier = Modifier.size(14.dp))
+                Icon(imageVector = icon, contentDescription = null, tint = if (highlight) NeonCrimson else Color.White, modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(text = title, color = if (highlight) NeonCrimson else Color.White.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                Text(text = title, color = if (highlight) NeonCrimson else Color.White.copy(alpha = 0.6f), fontSize = 8.sp, fontWeight = FontWeight.Black)
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             data.forEach { (label, value) ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(text = label, color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                    Text(text = value, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    Text(text = label, color = Color.Gray, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+                    Text(text = value, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
             }
         }
@@ -432,21 +396,21 @@ fun TelemetryWideCard(
         colors = CardDefaults.cardColors(containerColor = CyberCardDark.copy(alpha = 0.8f)),
         shape = CutCornerShape(8.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = title, color = Color.White.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Black)
+                    Text(text = title, color = Color.White.copy(alpha = 0.6f), fontSize = 8.sp, fontWeight = FontWeight.Black)
                 }
-                Text(text = value, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                Text(text = value, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
             }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(text = label, color = Color.Gray, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = label, color = Color.Gray, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(3.dp))
             LinearProgressIndicator(
                 progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
                 color = if (title.contains("BATTERY")) ElectricCyan else NeonCrimson,
                 trackColor = Color.DarkGray
             )

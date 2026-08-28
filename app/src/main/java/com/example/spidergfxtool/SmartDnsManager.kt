@@ -14,8 +14,9 @@ object SmartDnsManager {
 
     data class DnsProvider(
         val name: String,
-        val ip: String,
-        val hostname: String
+        val ip: String, // Or target domain for default
+        val hostname: String? = null,
+        val isDefault: Boolean = false
     )
 
     data class DnsResult(
@@ -25,8 +26,8 @@ object SmartDnsManager {
 
     private val providers = listOf(
         DnsProvider("Cloudflare", "1.1.1.1", "1dot1dot1dot1.cloudflare-dns.com"),
-        DnsProvider("Google", "8.8.8.8", "dns.google"),
-        DnsProvider("Quad9", "9.9.9.9", "dns.quad9.net")
+        DnsProvider("Google DNS", "8.8.8.8", "dns.google"),
+        DnsProvider("ISP Default", "google.com", isDefault = true)
     )
 
     suspend fun findBestDns(): DnsResult = withContext(Dispatchers.IO) {
@@ -43,8 +44,8 @@ object SmartDnsManager {
             results[name] = latency
         }
 
-        // Find provider with lowest latency (ignoring 0/failed results)
-        val bestEntry = results.filter { it.value > 0 }
+        // Find provider with lowest latency (ignoring 999/failed results)
+        val bestEntry = results.filter { it.value < 999 }
             .minByOrNull { it.value } 
             ?: results.entries.first() // Fallback to first if all failed
 
@@ -53,25 +54,28 @@ object SmartDnsManager {
         DnsResult(bestProvider, results)
     }
 
-    private fun measureLatency(ip: String): Long {
+    /**
+     * Executes a hardware-level ping command.
+     * Logic: ping -c 1 -w 1 <target>
+     */
+    private fun measureLatency(target: String): Long {
         return try {
-            val process = Runtime.getRuntime().exec("ping -c 2 -W 1 $ip")
+            val process = Runtime.getRuntime().exec("ping -c 1 -w 1 $target")
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             var line: String?
-            var totalTime = 0L
-            var count = 0
+            var latency = 999L
             
             while (reader.readLine().also { line = it } != null) {
                 if (line?.contains("time=") == true) {
                     val timePart = line!!.substringAfter("time=").substringBefore(" ms")
-                    totalTime += timePart.toDouble().toLong()
-                    count++
+                    latency = timePart.toDouble().toLong()
+                    break
                 }
             }
             process.waitFor()
-            if (count > 0) totalTime / count else 999L
+            latency
         } catch (e: Exception) {
-            Log.e(TAG, "Ping failed for $ip", e)
+            Log.e(TAG, "Ping failed for $target", e)
             999L
         }
     }

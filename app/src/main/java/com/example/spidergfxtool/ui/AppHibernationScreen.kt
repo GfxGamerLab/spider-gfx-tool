@@ -18,8 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.PowerSettingsNew
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -50,7 +52,7 @@ data class AppInfo(
     val initialRamMb: Int,
     val estimatedRamMb: Int,
     val isHeavy: Boolean,
-    val isHibernated: Boolean = false
+    val isRunning: Boolean = false // Replaces isHibernated
 )
 
 @Composable
@@ -60,15 +62,16 @@ fun AppHibernationScreen(onBack: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val isConnected = GfxBackendManager.isShizukuConnected.value
 
-    var apps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    // Use SnapshotStateList for real-time UI updates
+    val apps = remember { mutableStateListOf<AppInfo>() }
     val selectedPackages = remember { mutableStateListOf<String>() }
     var isExecuting by remember { mutableStateOf(false) }
-    var terminalLog by remember { mutableStateOf("IDLE: SYSTEM HIBERNATION v0.5 READY...") }
+    var terminalLog by remember { mutableStateOf("IDLE: SYSTEM HIBERNATION v0.6 READY...") }
     var isLoading by remember { mutableStateOf(true) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "Hibernation")
 
-    // Load and Sort Apps with Safety Guard
+    // Load and Scan Apps Live
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             val pm = context.packageManager
@@ -92,7 +95,6 @@ fun AppHibernationScreen(onBack: () -> Unit) {
             val heavyKeywords = listOf("instagram", "tiktok", "facebook", "browser", "chrome", "game", "pubg", "freefire", "whatsapp")
             
             val appList = installedApps.filter { app ->
-                // Filter out system critical apps and loaders
                 val isCritical = app.packageName in blacklist || app.packageName in launchers
                 val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
                 !isCritical && (!isSystem || heavyKeywords.any { app.packageName.lowercase().contains(it) })
@@ -101,25 +103,36 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                 val pkg = app.packageName
                 val isHeavy = heavyKeywords.any { name.lowercase().contains(it) || pkg.lowercase().contains(it) }
                 val ram = if (isHeavy) (300..600).random() else (50..250).random()
+                
+                // LIVE KERNEL SCAN
+                val isRunning = GfxBackendManager.checkIfAppIsRunning(pkg)
+                
                 AppInfo(
                     name = name,
                     packageName = pkg,
                     icon = app.loadIcon(pm),
                     isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
                     initialRamMb = ram,
-                    estimatedRamMb = ram,
-                    isHeavy = isHeavy
+                    estimatedRamMb = if (isRunning) ram else 0,
+                    isHeavy = isHeavy,
+                    isRunning = isRunning
                 )
-            }.sortedWith(compareByDescending<AppInfo> { it.isHeavy }.thenByDescending { it.estimatedRamMb })
+            }.sortedWith(
+                compareByDescending<AppInfo> { it.isRunning }
+                .thenByDescending { it.isHeavy }
+                .thenByDescending { it.estimatedRamMb }
+            )
             
             withContext(Dispatchers.Main) {
-                apps = appList
+                apps.clear()
+                apps.addAll(appList)
                 isLoading = false
+                terminalLog = "[SYSTEM] Live Scan Complete. Active processes identified."
             }
         }
     }
 
-    val totalPurgeableRam = remember(selectedPackages.size, apps) {
+    val totalPurgeableRam = remember(selectedPackages.size, apps.toList()) {
         selectedPackages.sumOf { pkg -> apps.find { it.packageName == pkg }?.estimatedRamMb ?: 0 }
     }
 
@@ -130,34 +143,40 @@ fun AppHibernationScreen(onBack: () -> Unit) {
             scope.launch {
                 isExecuting = true
                 try {
-                    terminalLog = "[PROCESS] Initiating v0.5 Deep Hibernation..."
+                    terminalLog = "[PROCESS] Initiating v0.6 Deep Hibernation..."
                     val targets = selectedPackages.toList()
                     
                     targets.forEach { pkg ->
-                        val app = apps.find { it.packageName == pkg }
-                        terminalLog += "\n>> Freezing: ${app?.name ?: pkg}..."
-                        
-                        // ACTUAL SHIZUKU EXECUTION
-                        GfxBackendManager.runShell(context, "am force-stop $pkg")
-                        
-                        // Update UI State Reactively
-                        apps = apps.map { 
-                            if (it.packageName == pkg) it.copy(isHibernated = true, estimatedRamMb = 0) else it
+                        val appIndex = apps.indexOfFirst { it.packageName == pkg }
+                        if (appIndex != -1) {
+                            val app = apps[appIndex]
+                            terminalLog += "\n>> Freezing: ${app.name}..."
+                            
+                            // ACTUAL SHIZUKU EXECUTION
+                            val result = GfxBackendManager.runShell(context, "am force-stop $pkg")
+                            
+                            if (result.isSuccess) {
+                                // Real-time state update in SnapshotStateList
+                                apps[appIndex] = app.copy(isRunning = false, estimatedRamMb = 0)
+                                selectedPackages.remove(pkg)
+                                terminalLog += "\n[SUCCESS] ${app.name} suspended."
+                            } else {
+                                terminalLog += "\n[FAIL] Failed to stop ${app.name}."
+                            }
                         }
-                        
-                        terminalLog += "\n[SUCCESS] $pkg frozen. Reclaiming memory..."
-                        delay(200) // Visual pacing
+                        delay(200) // Visual feedback pacing
                     }
                     
-                    // Trigger Re-sort: Active First, Frozen Bottom
-                    apps = apps.sortedWith(
-                        compareBy<AppInfo> { it.isHibernated }
+                    // Final re-sort to move sleeping apps to bottom
+                    val sortedList = apps.toList().sortedWith(
+                        compareByDescending<AppInfo> { it.isRunning }
                         .thenByDescending { it.isHeavy }
                         .thenByDescending { it.estimatedRamMb }
                     )
+                    apps.clear()
+                    apps.addAll(sortedList)
                     
-                    terminalLog += "\n[FINISH] Suspended ${targets.size} apps. Freed ~${totalPurgeableRam} MB."
-                    selectedPackages.clear()
+                    terminalLog += "\n[FINISH] Hibernation complete. System optimized."
                     SoundEffectsManager.playOff()
                 } catch (e: Exception) {
                     terminalLog += "\n[ERROR] Engine failure: ${e.localizedMessage}"
@@ -175,20 +194,44 @@ fun AppHibernationScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 60.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+                .padding(top = 72.dp, start = 16.dp, end = 16.dp, bottom = 8.dp)
         ) {
             Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 
                 // --- LEFT PANE (55%): APP SELECTOR ---
                 Column(modifier = Modifier.weight(0.55f).fillMaxHeight()) {
-                    Text(
-                        text = "APP SELECTOR ENGINE v0.5",
-                        color = ElectricCyan.copy(alpha = 0.8f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "APP SELECTOR ENGINE v0.6",
+                            color = ElectricCyan.copy(alpha = 0.8f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        )
+                        
+                        // SELECT ALL ACTIVE FEATURE
+                        if (!isLoading && apps.any { it.isRunning }) {
+                            TextButton(
+                                onClick = {
+                                    triggerActionFeedback(haptic, true)
+                                    apps.filter { it.isRunning }.forEach { 
+                                        if (it.packageName !in selectedPackages) selectedPackages.add(it.packageName) 
+                                    }
+                                    terminalLog = "[UI] All active processes targeted for purge."
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(24.dp)
+                            ) {
+                                Icon(Icons.Outlined.SelectAll, null, tint = NeonCrimson, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("SELECT ALL ACTIVE", color = NeonCrimson, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+                    }
 
                     Surface(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -203,15 +246,15 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         } else {
                             LazyColumn(
                                 modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                contentPadding = PaddingValues(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 items(apps, key = { it.packageName }) { app ->
                                     AppItemCard(
                                         app = app,
                                         isSelected = app.packageName in selectedPackages,
                                         onSelect = { 
-                                            if (!app.isHibernated && !isExecuting) {
+                                            if (app.isRunning && !isExecuting) {
                                                 if (it) {
                                                     selectedPackages.add(app.packageName)
                                                     SoundEffectsManager.playOn()
@@ -241,7 +284,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "CORE MONITOR v0.5",
+                            text = "CORE MONITOR v0.6",
                             color = NeonCrimson.copy(alpha = 0.8f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
@@ -258,24 +301,24 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         }
                     }
 
-                    // 1. Status Summary Card (Top Element)
+                    // 1. Status Summary Card
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
                         color = CyberCardDark.copy(alpha = 0.9f),
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.3f))
                     ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Memory, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(28.dp))
+                        Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Memory, contentDescription = null, tint = ElectricCyan, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("SELECTED TARGETS: ${selectedPackages.size}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                Text("SELECTED TARGETS: ${selectedPackages.size}", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
                                 Text(
                                     text = "PURGEABLE: $totalPurgeableRam MB", 
                                     color = if (selectedPackages.isNotEmpty()) NeonCrimson else ElectricCyan, 
-                                    fontSize = 12.sp, 
+                                    fontSize = 11.sp, 
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                 )
@@ -283,7 +326,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         }
                     }
 
-                    // 2. Hacker Terminal Console Box (Middle Element - MANDATORY WEIGHT 1f)
+                    // 2. Hacker Terminal Console Box
                     val scrollState = rememberScrollState()
                     Surface(
                         modifier = Modifier
@@ -299,7 +342,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         }
                     }
 
-                    // 3. Action Button (Bottom Element - Fixed Height)
+                    // 3. Action Button
                     Button(
                         onClick = {
                             if (selectedPackages.isNotEmpty() && !isExecuting) {
@@ -310,7 +353,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(42.dp)
                             .padding(top = 4.dp)
                             .shadow(if (selectedPackages.isNotEmpty()) 12.dp else 0.dp, RoundedCornerShape(12.dp), spotColor = NeonCrimson),
                         enabled = selectedPackages.isNotEmpty() && !isExecuting,
@@ -344,30 +387,30 @@ fun AppHibernationScreen(onBack: () -> Unit) {
 
 @Composable
 fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) {
-    val borderColor = if (app.isHibernated) Color.Gray.copy(alpha = 0.2f) else (if (isSelected) NeonCrimson else ElectricCyan.copy(alpha = 0.4f))
-    val bgColor = if (app.isHibernated) Color(0xFF0A0A0A) else (if (isSelected) Color(0xFF1A0A0A) else CyberCardDark)
+    val borderColor = if (!app.isRunning) ElectricCyan.copy(alpha = 0.2f) else (if (isSelected) NeonCrimson else NeonCrimson.copy(alpha = 0.4f))
+    val bgColor = if (!app.isRunning) Color(0xFF0A0A0A) else (if (isSelected) Color(0xFF1A0A0A) else CyberCardDark)
     
     Surface(
-        onClick = { if (!app.isHibernated) onSelect(!isSelected) },
+        onClick = { if (app.isRunning) onSelect(!isSelected) },
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (isSelected && !app.isHibernated) 8.dp else 0.dp, RoundedCornerShape(12.dp), spotColor = NeonCrimson),
+            .shadow(if (isSelected && app.isRunning) 8.dp else 0.dp, RoundedCornerShape(12.dp), spotColor = NeonCrimson),
         color = bgColor,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 bitmap = app.icon.toBitmap().asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(28.dp)
                     .clip(CircleShape)
-                    .alpha(if (app.isHibernated) 0.4f else 1f)
-                    .border(1.dp, if (app.isHeavy && !app.isHibernated) NeonCrimson.copy(alpha = 0.5f) else Color.Transparent, CircleShape)
+                    .alpha(if (!app.isRunning) 0.4f else 1f)
+                    .border(1.dp, if (app.isHeavy && app.isRunning) NeonCrimson.copy(alpha = 0.5f) else Color.Transparent, CircleShape)
             )
             
             Spacer(modifier = Modifier.width(12.dp))
@@ -375,7 +418,7 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = app.name, 
-                    color = if (app.isHibernated) Color.Gray else Color.White, 
+                    color = if (!app.isRunning) Color.Gray else Color.White, 
                     fontSize = 11.sp, 
                     fontWeight = FontWeight.Black,
                     maxLines = 1
@@ -390,14 +433,14 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
             }
             
             Column(horizontalAlignment = Alignment.End) {
-                if (app.isHibernated) {
+                if (!app.isRunning) {
                     Surface(
-                        color = Color.DarkGray.copy(alpha = 0.2f),
+                        color = ElectricCyan.copy(alpha = 0.05f),
                         shape = CutCornerShape(2.dp),
-                        border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.2f))
+                        border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.2f))
                     ) {
                         Text(
-                            "FROZEN / 0 MB", 
+                            "SLEEPING / 0 MB", 
                             color = ElectricCyan.copy(alpha = 0.6f), 
                             fontSize = 7.sp, 
                             fontWeight = FontWeight.Black,
@@ -407,7 +450,7 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
                 } else {
                     Text(
                         text = "~${app.estimatedRamMb} MB", 
-                        color = if (isSelected) Color.White else (if (app.isHeavy) NeonCrimson else ElectricCyan), 
+                        color = if (isSelected) Color.White else NeonCrimson, 
                         fontSize = 9.sp, 
                         fontWeight = FontWeight.Bold, 
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
@@ -418,7 +461,7 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
                 }
             }
             
-            if (!app.isHibernated) {
+            if (app.isRunning) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Checkbox(
                     checked = isSelected,
@@ -432,4 +475,9 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
             }
         }
     }
+}
+
+private fun triggerActionFeedback(haptic: androidx.compose.ui.hapticfeedback.HapticFeedback, isOn: Boolean) {
+    if (isOn) SoundEffectsManager.playOn() else SoundEffectsManager.playOff()
+    SoundEffectsManager.performHaptic(haptic)
 }

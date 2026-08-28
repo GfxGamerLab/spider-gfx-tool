@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 GfxBackendManager.runShell(null, "dumpsys battery reset")
                 GfxBackendManager.globalReset() // AUTO-RESET ON APP CLOSE
+                GfxBackendManager.resetOverclockingSafely(this@MainActivity) // REVERT EXPERIMENTAL TWEAKS
                 GfxBackendManager.destroy()
             }
             AudioPlayerManager.stopAndRelease()

@@ -123,25 +123,27 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
             ) {
                 Box(
                     modifier = Modifier
-                        .size(130.dp)
-                        .shadow(30.dp, CircleShape, spotColor = Color.Red)
+                        .size(100.dp) // Adjusted from 90.dp
+                        .shadow(30.dp, CircleShape, spotColor = Color(0xFFFF3131))
                         .background(
-                            Brush.radialGradient(listOf(Color(0xFFFF3131), Color(0xFF660000))), 
+                            Brush.radialGradient(listOf(Color(0xFFFF3131).copy(alpha = 0.4f), Color.Transparent)), 
                             shape = CircleShape
                         )
-                        .border(2.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+                        .border(1.5.dp, Color(0xFFFF3131).copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
                         painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                         contentDescription = "Logo",
-                        modifier = Modifier.fillMaxSize(0.8f),
-                        contentScale = ContentScale.Fit
+                        modifier = Modifier
+                            .fillMaxSize(0.9f)
+                            .clip(CircleShape), // Fix: Apply circular clip
+                        contentScale = ContentScale.Crop // Fix: Fill the circle
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // TITLE
             AnimatedVisibility(
@@ -166,7 +168,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
             // INPUT FIELD
             AnimatedVisibility(
@@ -206,7 +208,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // BUTTON
             AnimatedVisibility(
@@ -237,7 +239,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(58.dp)
+                        .height(48.dp)
                         .shadow(20.dp, RoundedCornerShape(16.dp), spotColor = glowColor),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.elevatedButtonColors(

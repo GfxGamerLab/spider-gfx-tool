@@ -167,19 +167,31 @@ fun GfxDashboardScreen() {
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(1.1f)
-                    .padding(start = 24.dp, top = 24.dp, bottom = 24.dp, end = 12.dp)
+                    .padding(start = 24.dp, top = 12.dp, bottom = 12.dp, end = 12.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 // APP BRANDING LOGO
-                Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                    contentDescription = "Spider Logo",
+                Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .padding(bottom = 12.dp)
-                        .align(Alignment.CenterHorizontally),
-                    contentScale = ContentScale.Fit
-                )
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Subtle Glow
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .blur(20.dp)
+                            .background(Color(0xFFFF3131).copy(alpha = 0.2f), CircleShape)
+                    )
+                    
+                    Image(
+                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                        contentDescription = "Spider Logo",
+                        modifier = Modifier.size(60.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
 
                 Text(
                     text = "TACTICAL OVERRIDES",
@@ -189,7 +201,7 @@ fun GfxDashboardScreen() {
                     letterSpacing = 2.sp
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Version Selector Grid
                 VersionSelector(
@@ -197,7 +209,7 @@ fun GfxDashboardScreen() {
                     onVersionSelected = onVersionSelected
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // --- FPS SELECTION ENGINE ---
                 Text(
@@ -208,9 +220,9 @@ fun GfxDashboardScreen() {
                     letterSpacing = 2.sp
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     HudTweakButton(
                         text = "APPLY 60 FPS",
                         subText = "STABLE SMOOTH PERFORMANCE",
@@ -239,7 +251,7 @@ fun GfxDashboardScreen() {
                     )
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // --- TACTICAL RAM SWEEPER ---
                 Text(
@@ -348,7 +360,7 @@ fun GfxDashboardScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // MASTER STATUS RING
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(100.dp)) {
                     Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = radarRotation }) {
                         drawArc(
                             color = if (isConnected) ElectricCyan else NeonCrimson,
@@ -360,7 +372,7 @@ fun GfxDashboardScreen() {
                     }
                     
                     Surface(
-                        modifier = Modifier.size(100.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
+                        modifier = Modifier.size(70.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
                         shape = CircleShape,
                         color = Color.Black.copy(alpha = 0.8f),
                         border = BorderStroke(2.dp, if (isConnected) ElectricCyan else NeonCrimson)
@@ -385,7 +397,7 @@ fun GfxDashboardScreen() {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // SYSTEM TERMINAL
                 val terminalScrollState = rememberScrollState()
@@ -439,7 +451,7 @@ fun HudTweakButton(
         enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
-            .height(70.dp)
+            .height(56.dp)
             .graphicsLayer {
                 alpha = if (enabled) 1f else 0.5f
             }
@@ -506,7 +518,7 @@ fun VersionChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .padding(4.dp)
-            .height(45.dp)
+            .height(36.dp)
             .widthIn(min = 90.dp)
             .clip(CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp))
             .clickable { onClick() },

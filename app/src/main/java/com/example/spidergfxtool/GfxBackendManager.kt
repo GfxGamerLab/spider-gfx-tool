@@ -491,6 +491,45 @@ object GfxBackendManager {
     }
 
     /**
+     * Checks if an application process is currently active using 'pidof'.
+     * Returns true if a PID is found, false otherwise.
+     */
+    suspend fun checkIfAppIsRunning(packageName: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val result = executeShizukuSafe("pidof $packageName")
+            result.isSuccess && result.getOrNull()?.isNotEmpty() == true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * REVERTS OVERCLOCKING SETTINGS SAFELY.
+     * Reverts HW Overlays to standard and Game Mode to standard.
+     * Call this in onDestroy() or when the app is swiped from recents.
+     */
+    fun resetOverclockingSafely(context: Context) {
+        @OptIn(DelicateCoroutinesApi::class)
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                if (Shizuku.pingBinder()) {
+                    // Revert HW Overlays
+                    executeShizukuSafe("service call SurfaceFlinger 1008 i32 0")
+                    
+                    // Revert Game Mode for all installed variants
+                    val installed = getInstalledGamePackages(context)
+                    installed.forEach { pkg ->
+                        executeShizukuSafe("cmd game mode standard $pkg")
+                    }
+                    Log.i("GFX_SAFETY", "Overclocking parameters reverted to stock.")
+                }
+            } catch (e: Exception) {
+                Log.e("GFX_SAFETY_ERROR", "Failed to revert overclocking: ${e.message}")
+            }
+        }
+    }
+
+    /**
      * Executes a master system reset via Shizuku to restore all tweaked parameters to defaults.
      * Uses the Watchdog Safe Wrapper to prevent kernel panics on unsupported devices.
      */
