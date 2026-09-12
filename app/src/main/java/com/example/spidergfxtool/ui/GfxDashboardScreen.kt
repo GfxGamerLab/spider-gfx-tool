@@ -1,26 +1,24 @@
 package com.example.spidergfxtool.ui
 
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
+import androidx.core.content.edit
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.*
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -43,6 +41,7 @@ import com.example.spidergfxtool.GfxConfigManager
 import com.example.spidergfxtool.R
 import com.example.spidergfxtool.SoundEffectsManager
 import com.example.spidergfxtool.AdsManager
+import com.example.spidergfxtool.ui.theme.TerminalTextStyle
 import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -59,7 +58,7 @@ fun getDetectedVersions(context: android.content.Context): List<PubgVersion> {
         PubgVersion("GLOBAL", "com.tencent.ig"),
         PubgVersion("KR", "com.pubg.krmobile"),
         PubgVersion("VN", "com.vng.pubgmobile"),
-        PubgVersion("TW", "com.pubg.twmobile")
+        PubgVersion("TW", "com.pubg.twmobile"),
     )
     return allPossible.filter { it.packageName in installed }
 }
@@ -71,8 +70,9 @@ fun GfxDashboardScreen() {
     val prefs = remember { context.getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
     val isConnected = GfxBackendManager.isShizukuConnected.value
-    var isProcessing by remember { mutableStateOf(false) }
-    var statusText by remember { mutableStateOf("") }
+    var isProcessing by remember { mutableStateOf(value = false) }
+    var statusText by remember { mutableStateOf(">> SYSTEM ENGINE READY\n>> WAITING FOR SELECTION...") }
+    var selectedFps by remember { mutableStateOf<Int?>(null) }
     
     val detectedVersions = remember(context) { getDetectedVersions(context) }
     var selectedVersion by remember { 
@@ -80,7 +80,7 @@ fun GfxDashboardScreen() {
     }
 
     // RAM Sweeper States
-    var showWhitelist by remember { mutableStateOf(false) }
+    var showWhitelist by remember { mutableStateOf(value = false) }
     var includeSystemApps by remember { mutableStateOf(prefs.getBoolean("ram_include_system", false)) }
     var currentWhitelist by remember { 
         mutableStateOf(prefs.getStringSet("ram_whitelist", emptySet()) ?: emptySet()) 
@@ -102,6 +102,7 @@ fun GfxDashboardScreen() {
 
     val onApplyFps: (Int) -> Unit = { fps ->
         triggerFeedback(true)
+        selectedFps = fps
         if (!isConnected) {
             Toast.makeText(context, "Please connect Shizuku first", Toast.LENGTH_SHORT).show()
         } else {
@@ -109,12 +110,12 @@ fun GfxDashboardScreen() {
                 isProcessing = true
                 try {
                     val fpsLabel = "${fps}FPS"
-                    statusText = "[SYSTEM] Initializing $fpsLabel v0.5 Engine..."
+                    statusText = "> INITIATING ENGINE OVERRIDE..."
                     
                     GfxConfigManager.applyFpsConfig(
                         fps = fpsLabel,
                         targetPackage = selectedVersion.packageName,
-                        context = context
+                        context = context,
                     ) { log ->
                         statusText += "\n$log"
                     }
@@ -134,11 +135,13 @@ fun GfxDashboardScreen() {
     val infiniteTransition = rememberInfiniteTransition(label = "Dashboard")
     val color1 by infiniteTransition.animateColor(
         initialValue = Color(0xFF001F3F), targetValue = Color(0xFF3F0000),
-        animationSpec = infiniteRepeatable(tween(4000), RepeatMode.Reverse), label = "C1"
+        animationSpec = infiniteRepeatable(tween(4000), RepeatMode.Reverse),
+        label = "C1",
     )
     val color2 by infiniteTransition.animateColor(
         initialValue = Color(0xFF00003F), targetValue = Color(0xFF800000),
-        animationSpec = infiniteRepeatable(tween(4000, 1000), RepeatMode.Reverse), label = "C2"
+        animationSpec = infiniteRepeatable(tween(4000, 1000), RepeatMode.Reverse),
+        label = "C2",
     )
 
     val glowAlpha by infiniteTransition.animateFloat(
@@ -153,12 +156,11 @@ fun GfxDashboardScreen() {
 
     // LANDSCAPE HUD ROOT
     Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(color1, color2, Color.Black)))) {
+        HudGridBackground()
+        
         // Overlay Layer
         if (showWhitelist) {
-            WhitelistOverlay(
-                onDismiss = { showWhitelist = false },
-                onWhitelistChanged = { currentWhitelist = it }
-            )
+            WhitelistOverlay(onDismiss = { showWhitelist = false }) { currentWhitelist = it }
         }
 
         Row(modifier = Modifier.fillMaxSize()) {
@@ -229,8 +231,8 @@ fun GfxDashboardScreen() {
                         glowColor = ElectricCyan,
                         alphaPulse = glowAlpha,
                         enabled = isConnected && !isProcessing,
-                        onClick = { onApplyFps(60) }
-                    )
+                        selected = selectedFps == 60
+                    ) { onApplyFps(60) }
 
                     HudTweakButton(
                         text = "APPLY 90 FPS",
@@ -238,8 +240,8 @@ fun GfxDashboardScreen() {
                         glowColor = ElectricCyan,
                         alphaPulse = glowAlpha,
                         enabled = isConnected && !isProcessing,
-                        onClick = { onApplyFps(90) }
-                    )
+                        selected = selectedFps == 90
+                    ) { onApplyFps(90) }
 
                     HudTweakButton(
                         text = "APPLY 120 FPS",
@@ -247,8 +249,8 @@ fun GfxDashboardScreen() {
                         glowColor = ElectricCyan,
                         alphaPulse = glowAlpha,
                         enabled = isConnected && !isProcessing,
-                        onClick = { onApplyFps(120) }
-                    )
+                        selected = selectedFps == 120
+                    ) { onApplyFps(120) }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
@@ -272,10 +274,10 @@ fun GfxDashboardScreen() {
                     Text("INCLUDE SYSTEM APPS", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     CyberpunkToggle(
                         checked = includeSystemApps,
-                        onCheckedChange = { 
-                            triggerFeedback(it)
-                            includeSystemApps = it
-                            prefs.edit().putBoolean("ram_include_system", it).apply()
+                        onCheckedChange = { isOn -> 
+                            triggerFeedback(isOn)
+                            includeSystemApps = isOn
+                            prefs.edit { putBoolean("ram_include_system", isOn) }
                         },
                         activeColor = NeonCrimson
                     )
@@ -400,20 +402,10 @@ fun GfxDashboardScreen() {
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // SYSTEM TERMINAL
-                val terminalScrollState = rememberScrollState()
-                Card(
-                    modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, NeonCrimson.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
-                    shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(terminalScrollState)) {
-                        TypewriterText(
-                            text = statusText,
-                            color = NeonCrimson,
-                            scrollState = terminalScrollState
-                        )
-                    }
-                }
+                LiveTerminalBox(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    terminalLog = statusText
+                )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
@@ -424,7 +416,7 @@ fun GfxDashboardScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "SECURE ENGINE PROTOCOL v0.5",
+                        text = "SECURE ENGINE PROTOCOL v0.6",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -444,21 +436,34 @@ fun HudTweakButton(
     glowColor: Color,
     alphaPulse: Float,
     enabled: Boolean,
+    selected: Boolean = false,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Surface(
-        onClick = onClick,
-        enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp)
+            .zIndex(1f)
             .graphicsLayer {
                 alpha = if (enabled) 1f else 0.5f
             }
-            .shadow(if (enabled) (10 * alphaPulse).dp else 0.dp, CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp), spotColor = glowColor),
-        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp),
+            .clickable(
+                enabled = enabled,
+                onClick = onClick,
+                interactionSource = interactionSource,
+                indication = LocalIndication.current
+            )
+            .tacticalPress(interactionSource = interactionSource)
+            .animatedNeonBorder(
+                enabled = selected,
+                color1 = glowColor,
+                shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp)
+            )
+            .shadow(if (enabled) (10 * alphaPulse).dp else 0.dp, CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp), spotColor = glowColor),
+        shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp),
         color = Color.White.copy(alpha = 0.05f),
-        border = BorderStroke(1.dp, if (enabled) glowColor.copy(alpha = alphaPulse) else Color.Gray.copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, if (enabled) glowColor.copy(alpha = if (selected) 1f else alphaPulse) else Color.Gray.copy(alpha = 0.3f))
     ) {
         Box(
             modifier = Modifier.background(
@@ -467,8 +472,8 @@ fun HudTweakButton(
             contentAlignment = Alignment.CenterStart
         ) {
             Column {
-                Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                Text(subText, color = glowColor.copy(alpha = 0.6f), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(text, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black, style = TerminalTextStyle)
+                Text(subText, color = glowColor.copy(alpha = 0.6f), fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             }
             
             // Slanted Decorative Edge
@@ -493,7 +498,7 @@ fun VersionSelector(
         PubgVersion("GLOBAL", "com.tencent.ig"),
         PubgVersion("KR", "com.pubg.krmobile"),
         PubgVersion("VN", "com.vng.pubgmobile"),
-        PubgVersion("TW", "com.pubg.twmobile")
+        PubgVersion("TW", "com.pubg.twmobile"),
     )
 
     @OptIn(ExperimentalLayoutApi::class)
@@ -506,9 +511,8 @@ fun VersionSelector(
             val isSelected = selectedVersion.packageName == version.packageName
             VersionChip(
                 text = version.name,
-                isSelected = isSelected,
-                onClick = { onVersionSelected(version) }
-            )
+                isSelected = isSelected
+            ) { onVersionSelected(version) }
         }
     }
 }
@@ -520,14 +524,19 @@ fun VersionChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
             .padding(4.dp)
             .height(36.dp)
             .widthIn(min = 90.dp)
-            .clip(CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp))
-            .clickable { onClick() },
+            .clip(CutCornerShape(6.dp))
+            .tacticalPress { onClick() }
+            .animatedNeonBorder(
+                enabled = isSelected,
+                color1 = NeonCrimson,
+                shape = CutCornerShape(6.dp)
+            ),
         color = if (isSelected) Color(0xFF2A0000) else Color.Black.copy(alpha = 0.6f),
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 1.dp,
             color = if (isSelected) NeonCrimson else Color.Gray.copy(alpha = 0.3f)
         ),
-        shape = CutCornerShape(topStart = 6.dp, bottomEnd = 6.dp)
+        shape = CutCornerShape(6.dp)
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 8.dp),
@@ -536,10 +545,39 @@ fun VersionChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
             Text(
                 text = text,
                 color = if (isSelected) Color.White else Color.Gray,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
+                style = TerminalTextStyle,
+                fontSize = 10.sp
             )
+        }
+    }
+}
+
+@Composable
+fun LiveTerminalBox(
+    modifier: Modifier = Modifier,
+    terminalLog: String
+) {
+    val scrollState = rememberScrollState()
+
+    Card(
+        modifier = modifier.border(1.dp, NeonCrimson.copy(alpha = 0.3f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
+    ) {
+        Box {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .blur(8.dp)
+            )
+            Column(modifier = Modifier.fillMaxSize().padding(12.dp).verticalScroll(scrollState)) {
+                TypewriterText(
+                    text = terminalLog,
+                    color = NeonCrimson,
+                    scrollState = scrollState
+                )
+            }
         }
     }
 }

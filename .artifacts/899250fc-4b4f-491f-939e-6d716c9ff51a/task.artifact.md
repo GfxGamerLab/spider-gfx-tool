@@ -1,0 +1,5 @@
+- `[x]` Fix `tacticalPress` argument mismatch errors
+    - `[x]` Update `GfxExtremeHudScreen.kt`
+    - `[x]` Update `GfxDashboardScreen.kt`
+- `[x]` Verify build
+- `[x]` Review and fix remaining warnings/errors

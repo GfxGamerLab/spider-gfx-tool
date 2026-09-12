@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
@@ -47,12 +48,12 @@ import androidx.compose.ui.unit.sp
 import com.example.spidergfxtool.AudioPlayerManager
 import com.example.spidergfxtool.R
 import com.example.spidergfxtool.SoundEffectsManager
-import com.example.spidergfxtool.ui.components.GlobalCommunityFooter
-import com.example.spidergfxtool.ui.components.SocialIcon
+import com.example.spidergfxtool.ui.theme.TerminalTextStyle
+import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val ACCESS_KEY = "GFXGAMERLAB"
+private const val ACCESS_KEY = "GFXGAMERLAB0"
 
 @Composable
 fun GfxActivationScreen(onActivated: () -> Unit) {
@@ -86,6 +87,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
             ),
         contentAlignment = Alignment.Center
     ) {
+        HudGridBackground()
         // LAYER 1: Animated Background Pattern
         Box(modifier = Modifier.fillMaxSize()) {
             val spiderMove by infiniteTransition.animateFloat(
@@ -154,15 +156,15 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                     Text(
                         text = "CORE ACTIVATION", 
                         color = Color.White, 
-                        fontSize = 26.sp, 
-                        fontWeight = FontWeight.Black, 
+                        style = TerminalTextStyle,
+                        fontSize = 24.sp,
                         letterSpacing = 8.sp
                     )
                     Text(
-                        text = "V0.5 STABILITY PROTOCOL", 
+                        text = "V0.6 STABILITY PROTOCOL", 
                         color = Color(0xFFFF3131).copy(alpha = 0.7f), 
-                        fontSize = 11.sp, 
-                        fontWeight = FontWeight.Bold,
+                        style = TerminalTextStyle,
+                        fontSize = 10.sp,
                         letterSpacing = 2.sp
                     )
                 }
@@ -210,50 +212,56 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // BUTTON
+            // BUTTON (FIXED: Replaced ElevatedButton with Surface to resolve tacticalPress conflict)
             AnimatedVisibility(
                 visible = isVisible,
                 enter = fadeIn(tween(800, 600)) + slideInVertically(initialOffsetY = { 60 }, animationSpec = tween(800, 600))
             ) {
-                ElevatedButton(
-                    onClick = {
-                        SoundEffectsManager.playOn()
-                        SoundEffectsManager.performHaptic(haptic)
-                        // Robust multi-lingual validation logic
-                        val cleanedInput = keyInput.trim().filter { !it.isWhitespace() }.uppercase()
-                        
-                        if (cleanedInput == ACCESS_KEY) {
-                            val mp = MediaPlayer.create(context, R.raw.correct_key)
-                            mp?.start()
-                            mp?.setOnCompletionListener { it.release() }
-                            scope.launch {
-                                delay(2500)
-                                onActivated()
-                            }
-                        } else {
-                            val mp = MediaPlayer.create(context, R.raw.wrong_key)
-                            mp?.start()
-                            mp?.setOnCompletionListener { it.release() }
-                            Toast.makeText(context, "Encryption Key Rejected!", Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
-                        .shadow(20.dp, RoundedCornerShape(16.dp), spotColor = glowColor),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.elevatedButtonColors(
-                        containerColor = Color(0xFFFF3131),
-                        contentColor = Color.White
-                    ),
-                    elevation = ButtonDefaults.elevatedButtonElevation(defaultElevation = 12.dp)
+                        .shadow(20.dp, CutCornerShape(16.dp), spotColor = glowColor)
+                        .tacticalPress {
+                            // 1. Validation Logic
+                            val processedInput = keyInput.replace("\\s+".toRegex(), "")
+                            
+                            if (processedInput.equals(ACCESS_KEY, ignoreCase = true)) {
+                                // SUCCESS PATH
+                                try {
+                                    val mp = MediaPlayer.create(context, R.raw.correct_key)
+                                    mp?.start()
+                                    mp?.setOnCompletionListener { it.release() }
+                                } catch (e: Exception) { /* Fallback if audio fails */ }
+                                
+                                scope.launch {
+                                    delay(2500)
+                                    onActivated()
+                                }
+                            } else {
+                                // FAILURE PATH
+                                try {
+                                    val mp = MediaPlayer.create(context, R.raw.wrong_key)
+                                    mp?.start()
+                                    mp?.setOnCompletionListener { it.release() }
+                                } catch (e: Exception) { /* Fallback */ }
+                                
+                                Toast.makeText(context, "Encryption Key Rejected!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                    shape = CutCornerShape(16.dp),
+                    color = Color(0xFFFF3131),
+                    contentColor = Color.White,
+                    tonalElevation = 12.dp
                 ) {
-                    Text(
-                        text = "INITIALIZE ENGINE", 
-                        fontWeight = FontWeight.Black, 
-                        letterSpacing = 2.sp,
-                        fontSize = 16.sp
-                    )
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Text(
+                            text = "INITIALIZE ENGINE", 
+                            style = TerminalTextStyle,
+                            fontSize = 14.sp,
+                            letterSpacing = 2.sp
+                        )
+                    }
                 }
             }
 

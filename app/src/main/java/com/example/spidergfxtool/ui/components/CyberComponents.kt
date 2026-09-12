@@ -17,15 +17,24 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.drawscope.inset
+import androidx.compose.ui.graphics.drawscope.withTransform
 import coil.compose.AsyncImage
+import com.example.spidergfxtool.ui.theme.TerminalTextStyle
 import com.example.spidergfxtool.SoundEffectsManager
 import kotlinx.coroutines.delay
 
@@ -45,47 +54,65 @@ fun CyberTweakCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, NeonCrimson.copy(alpha = 0.2f), CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)),
-        colors = CardDefaults.cardColors(containerColor = CyberCardDark.copy(alpha = 0.8f)),
-        shape = CutCornerShape(topStart = 12.dp, bottomEnd = 12.dp)
+            .border(1.dp, NeonCrimson.copy(alpha = 0.2f), CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = CutCornerShape(topStart = 16.dp, bottomEnd = 16.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp).shadow(4.dp, spotColor = Color.White)
+        Box {
+            // Glassmorphism Background
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color.White.copy(alpha = 0.05f), Color.Transparent),
+                            start = Offset(0f, 0f),
+                            end = Offset(0f, 400f)
+                        )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    .background(CyberCardDark.copy(alpha = 0.7f))
+                    .blur(10.dp)
+            )
+
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp).shadow(4.dp, spotColor = Color.White)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 2.sp
+                        )
+                    }
                     Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp
+                        text = "ID: $statusHex",
+                        color = NeonCrimson.copy(alpha = 0.4f),
+                        fontSize = 9.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        letterSpacing = 1.5.sp
                     )
                 }
-                Text(
-                    text = "ID: $statusHex",
-                    color = NeonCrimson.copy(alpha = 0.4f),
-                    fontSize = 9.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                )
-            }
-            
-            val dividerBrush = remember { Brush.horizontalGradient(listOf(NeonCrimson.copy(alpha = 0.3f), Color.Transparent)) }
-            Box(modifier = Modifier.padding(vertical = 12.dp).fillMaxWidth().height(1.dp).background(dividerBrush))
-            
-            content()
-            
-            Row(modifier = Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Text("SECURE ENGINE PROTOCOL v0.5", color = Color.White.copy(alpha = 0.1f), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                
+                val dividerBrush = remember { Brush.horizontalGradient(listOf(NeonCrimson.copy(alpha = 0.3f), Color.Transparent)) }
+                Box(modifier = Modifier.padding(vertical = 12.dp).fillMaxWidth().height(1.dp).background(dividerBrush))
+                
+                content()
+                
+                Row(modifier = Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Text("SECURE ENGINE PROTOCOL v0.6", color = Color.White.copy(alpha = 0.1f), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
             }
         }
     }
@@ -181,9 +208,9 @@ fun TypewriterText(
     Text(
         text = displayedText + (if (cursorVisible) "_" else " "),
         color = color,
-        fontSize = 10.sp,
-        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-        lineHeight = 14.sp,
+        style = TerminalTextStyle,
+        fontSize = 9.sp,
+        lineHeight = 12.sp,
         modifier = modifier
     )
 }
@@ -231,15 +258,13 @@ fun AnimatedSpiderWeb(infiniteTransition: InfiniteTransition) {
 
 @Composable
 fun CyberTweakChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
-    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
-            .clip(CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp))
+            .clip(CutCornerShape(4.dp))
             .background(if (isSelected) Color(0xFF330000) else Color.Transparent)
             .border(1.dp, if (isSelected) NeonCrimson else Color.DarkGray, CutCornerShape(4.dp))
-            .clickable {
+            .tacticalPress {
                 SoundEffectsManager.playOn()
-                SoundEffectsManager.performHaptic(haptic)
                 onClick()
             }
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -249,7 +274,9 @@ fun CyberTweakChip(text: String, isSelected: Boolean, onClick: () -> Unit) {
             text = text,
             color = if (isSelected) Color.White else Color.Gray,
             fontWeight = FontWeight.Black,
-            fontSize = 11.sp
+            fontSize = 11.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            letterSpacing = 1.sp
         )
     }
 }
@@ -309,14 +336,14 @@ fun GlobalCommunityFooter(modifier: Modifier = Modifier) {
             TutorialThumbnailCard(
                 modifier = Modifier.weight(1f),
                 title = "Tutorial Video in English",
-                thumbnailUrl = "https://img.youtube.com/vi/jzFuYRNmG_o/hqdefault.jpg",
-                videoUrl = "https://youtu.be/jzFuYRNmG_o?si=OrYVXMlu__wB76UU"
+                thumbnailUrl = "https://img.youtube.com/vi/JOMh3uegKVk/maxresdefault.jpg",
+                videoUrl = "https://youtu.be/JOMh3uegKVk"
             )
             TutorialThumbnailCard(
                 modifier = Modifier.weight(1f),
                 title = "Tutorial Video in Hindi/Urdu",
-                thumbnailUrl = "https://img.youtube.com/vi/wLs7fkdlGqI/hqdefault.jpg",
-                videoUrl = "https://youtu.be/wLs7fkdlGqI?si=e_O2aMgHRJAH7hac"
+                thumbnailUrl = "https://img.youtube.com/vi/HuuldKpzVsU/maxresdefault.jpg",
+                videoUrl = "https://youtu.be/HuuldKpzVsU"
             )
         }
 
@@ -349,11 +376,196 @@ fun GlobalCommunityFooter(modifier: Modifier = Modifier) {
         
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "SECURE ENGINE PROTOCOL v0.5",
+            text = "SECURE ENGINE PROTOCOL v0.6",
             color = Color.White.copy(alpha = 0.1f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+/**
+ * Reusable modifier for a tactical scale-down effect on press with haptic feedback.
+ */
+@Composable
+fun Modifier.tacticalPress(
+    interactionSource: MutableInteractionSource? = null,
+    onClick: (() -> Unit)? = null
+): Modifier {
+    val haptic = LocalHapticFeedback.current
+    val isPressedInteraction by (interactionSource ?: remember { MutableInteractionSource() }).collectIsPressedAsState()
+    
+    var isPressedManual by remember { mutableStateOf(false) }
+    val isPressed = isPressedInteraction || isPressedManual
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
+        label = "PressScale"
+    )
+
+    val modifier = this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+
+    return if (onClick != null) {
+        modifier.pointerInput(onClick) {
+            detectTapGestures(
+                onPress = {
+                    isPressedManual = true
+                    try {
+                        awaitRelease()
+                    } finally {
+                        isPressedManual = false
+                    }
+                },
+                onTap = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onClick()
+                }
+            )
+        }
+    } else if (interactionSource == null) {
+        modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onPress = {
+                    isPressedManual = true
+                    try {
+                        awaitRelease()
+                    } finally {
+                        isPressedManual = false
+                    }
+                }
+            )
+        }
+    } else {
+        modifier
+    }
+}
+
+/**
+ * Reusable modifier for a slow-moving animated neon border for active states.
+ * Upgraded with BREATHING glow effect.
+ */
+@Composable
+fun Modifier.animatedNeonBorder(
+    enabled: Boolean,
+    color1: Color = ElectricCyan,
+    color2: Color = Color.Transparent,
+    shape: Shape = CutCornerShape(12.dp),
+    borderWidth: androidx.compose.ui.unit.Dp = 1.5.dp
+): Modifier {
+    if (!enabled) return this
+
+    val infiniteTransition = rememberInfiniteTransition(label = "NeonBorder")
+    val angle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing), RepeatMode.Restart),
+        label = "Angle"
+    )
+
+    // BREATHING EFFECT: Animate opacity from 40% to 100%
+    val breathingAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse),
+        label = "Breathing"
+    )
+
+    val brush = Brush.sweepGradient(
+        listOf(color1.copy(alpha = breathingAlpha), color2, color1.copy(alpha = breathingAlpha)),
+        center = Offset.Unspecified
+    )
+
+    return this
+        .graphicsLayer {
+            rotationZ = angle
+        }
+        .border(borderWidth, brush, shape)
+        .graphicsLayer {
+            rotationZ = -angle
+        }
+}
+
+/**
+ * Technical HUD Grid Background with subtle dotted pattern.
+ */
+@Composable
+fun HudGridBackground(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val strokeColor = Color.White.copy(alpha = 0.05f)
+        val gridSize = 40.dp.toPx()
+        val dotSize = 1.dp.toPx()
+
+        for (x in 0..size.width.toInt() step gridSize.toInt()) {
+            for (y in 0..size.height.toInt() step gridSize.toInt()) {
+                drawCircle(
+                    color = strokeColor,
+                    radius = dotSize,
+                    center = Offset(x.toFloat(), y.toFloat())
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Tactical Target Checkbox for sci-fi list interaction.
+ */
+@Composable
+fun TacticalTargetCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "TargetLock")
+    val lockAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        label = "LockAlpha"
+    )
+
+    Box(
+        modifier = modifier
+            .size(30.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onCheckedChange(!checked) },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val color = if (checked) NeonCrimson else Color.Gray.copy(alpha = 0.4f)
+            val alpha = if (checked) lockAlpha else 1f
+            val sizePx = size.width
+            val thickness = 1.5.dp.toPx()
+
+            // Draw Brackets [ ]
+            // Top Left
+            drawLine(color.copy(alpha = alpha), Offset(0f, 0f), Offset(sizePx / 4, 0f), thickness)
+            drawLine(color.copy(alpha = alpha), Offset(0f, 0f), Offset(0f, sizePx / 4), thickness)
+            
+            // Top Right
+            drawLine(color.copy(alpha = alpha), Offset(sizePx, 0f), Offset(sizePx * 0.75f, 0f), thickness)
+            drawLine(color.copy(alpha = alpha), Offset(sizePx, 0f), Offset(sizePx, sizePx / 4), thickness)
+
+            // Bottom Left
+            drawLine(color.copy(alpha = alpha), Offset(0f, sizePx), Offset(sizePx / 4, sizePx), thickness)
+            drawLine(color.copy(alpha = alpha), Offset(0f, sizePx), Offset(0f, sizePx * 0.75f), thickness)
+
+            // Bottom Right
+            drawLine(color.copy(alpha = alpha), Offset(sizePx, sizePx), Offset(sizePx * 0.75f, sizePx), thickness)
+            drawLine(color.copy(alpha = alpha), Offset(sizePx, sizePx), Offset(sizePx, sizePx * 0.75f), thickness)
+
+            if (checked) {
+                // Draw Crosshair in center
+                drawLine(color.copy(alpha = alpha), Offset(sizePx / 2, sizePx / 4), Offset(sizePx / 2, sizePx * 0.75f), thickness)
+                drawLine(color.copy(alpha = alpha), Offset(sizePx / 4, sizePx / 2), Offset(sizePx * 0.75f, sizePx / 2), thickness)
+            }
+        }
     }
 }
 
@@ -369,14 +581,13 @@ fun TutorialThumbnailCard(
 
     Card(
         modifier = modifier
-            .clickable {
+            .tacticalPress {
                 SoundEffectsManager.playOn()
-                SoundEffectsManager.performHaptic(haptic)
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl)))
             }
-            .border(1.dp, ElectricCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp)),
+            .border(1.dp, ElectricCyan.copy(alpha = 0.3f), CutCornerShape(12.dp)),
         colors = CardDefaults.cardColors(containerColor = CyberCardDark),
-        shape = RoundedCornerShape(12.dp)
+        shape = CutCornerShape(12.dp)
     ) {
         Column {
             AsyncImage(
@@ -385,7 +596,7 @@ fun TutorialThumbnailCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                    .clip(CutCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                 contentScale = ContentScale.Crop
             )
             Text(
@@ -411,22 +622,21 @@ fun SocialFooterButton(
     color: Color,
     onClick: () -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
     Surface(
-        onClick = {
-            SoundEffectsManager.playOn()
-            SoundEffectsManager.performHaptic(haptic)
-            onClick()
-        },
+        onClick = {}, // Handled by tacticalPress
         modifier = Modifier
             .height(36.dp)
-            .widthIn(min = 90.dp),
+            .widthIn(min = 90.dp)
+            .tacticalPress {
+                SoundEffectsManager.playOn()
+                onClick()
+            },
         color = color.copy(alpha = 0.1f),
         border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
-        shape = CutCornerShape(topStart = 4.dp, bottomEnd = 4.dp)
+        shape = CutCornerShape(4.dp)
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(text = text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+            Text(text = text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, letterSpacing = 1.sp)
         }
     }
 }

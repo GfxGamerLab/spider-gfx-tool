@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.SoundEffectsManager
+import com.example.spidergfxtool.ui.theme.TerminalTextStyle
 import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -189,6 +190,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
 
     // --- TWO-PANE LANDSCAPE ROOT ---
     Box(modifier = Modifier.fillMaxSize().background(CyberDeepDark)) {
+        HudGridBackground()
         AnimatedSpiderWeb(infiniteTransition)
         
         Column(
@@ -387,16 +389,22 @@ fun AppHibernationScreen(onBack: () -> Unit) {
 
 @Composable
 fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) {
-    val borderColor = if (!app.isRunning) ElectricCyan.copy(alpha = 0.2f) else (if (isSelected) NeonCrimson else NeonCrimson.copy(alpha = 0.4f))
+    val borderColor = if (!app.isRunning) ElectricCyan.copy(alpha = 0.2f) else NeonCrimson.copy(alpha = 0.4f)
     val bgColor = if (!app.isRunning) Color(0xFF0A0A0A) else (if (isSelected) Color(0xFF1A0A0A) else CyberCardDark)
     
     Surface(
-        onClick = { if (app.isRunning) onSelect(!isSelected) },
+        onClick = {}, // Handled by tacticalPress
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (isSelected && app.isRunning) 8.dp else 0.dp, RoundedCornerShape(12.dp), spotColor = NeonCrimson),
+            .shadow(if (isSelected && app.isRunning) 8.dp else 0.dp, CutCornerShape(12.dp), spotColor = NeonCrimson)
+            .animatedNeonBorder(
+                enabled = app.isRunning && isSelected,
+                color1 = NeonCrimson,
+                shape = CutCornerShape(12.dp)
+            )
+            .tacticalPress { if (app.isRunning) onSelect(!isSelected) },
         color = bgColor,
-        shape = RoundedCornerShape(12.dp),
+        shape = CutCornerShape(12.dp),
         border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
@@ -426,9 +434,9 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
                 Text(
                     text = app.packageName, 
                     color = Color.Gray.copy(alpha = 0.6f), 
+                    style = TerminalTextStyle,
                     fontSize = 7.sp, 
-                    maxLines = 1,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    maxLines = 1
                 )
             }
             
@@ -442,8 +450,8 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
                         Text(
                             "SLEEPING / 0 MB", 
                             color = ElectricCyan.copy(alpha = 0.6f), 
+                            style = TerminalTextStyle,
                             fontSize = 7.sp, 
-                            fontWeight = FontWeight.Black,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
@@ -451,9 +459,8 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
                     Text(
                         text = "~${app.estimatedRamMb} MB", 
                         color = if (isSelected) Color.White else NeonCrimson, 
-                        fontSize = 9.sp, 
-                        fontWeight = FontWeight.Bold, 
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        style = TerminalTextStyle,
+                        fontSize = 9.sp
                     )
                     if (app.isHeavy) {
                         Text("HEAVY", color = NeonCrimson.copy(alpha = 0.6f), fontSize = 6.sp, fontWeight = FontWeight.Black)
@@ -463,14 +470,9 @@ fun AppItemCard(app: AppInfo, isSelected: Boolean, onSelect: (Boolean) -> Unit) 
             
             if (app.isRunning) {
                 Spacer(modifier = Modifier.width(8.dp))
-                Checkbox(
+                TacticalTargetCheckbox(
                     checked = isSelected,
-                    onCheckedChange = onSelect,
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = NeonCrimson, 
-                        uncheckedColor = Color.DarkGray,
-                        checkmarkColor = Color.White
-                    )
+                    onCheckedChange = onSelect
                 )
             }
         }

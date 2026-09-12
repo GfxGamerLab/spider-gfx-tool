@@ -30,6 +30,7 @@ import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.SoundEffectsManager
 import com.example.spidergfxtool.AdsManager
 import com.example.spidergfxtool.SystemTelemetryViewModel
+import com.example.spidergfxtool.ui.theme.TerminalTextStyle
 import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -88,6 +89,7 @@ fun GfxExtraFeaturesScreen() {
     val backgroundBrush = remember(color1, color2) { Brush.verticalGradient(listOf(color1, color2, Color.Black)) }
 
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        HudGridBackground()
         // Reuse spider web for atmosphere
         AnimatedSpiderWeb(infiniteTransition)
 
@@ -103,8 +105,8 @@ fun GfxExtraFeaturesScreen() {
                 Text(
                     text = "ADVANCED HARDWARE MODS",
                     color = ElectricCyan.copy(alpha = 0.8f),
+                    style = TerminalTextStyle,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Black,
                     letterSpacing = 2.sp
                 )
                 
@@ -153,21 +155,38 @@ fun GfxExtraFeaturesScreen() {
                                         triggerFeedback(false) // Success/Finish sound
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(38.dp),
+                                modifier = Modifier.weight(1f).height(38.dp).tacticalPress { 
+                                    triggerFeedback(true)
+                                    if (!isConnected) {
+                                        Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
+                                        return@tacticalPress
+                                    }
+                                    scope.launch {
+                                        isProcessing = true
+                                        statusText = "[SYSTEM] Applying Hardware Aspect Override..."
+                                        GfxBackendManager.applyWidthIpadView(context, resScale) { log ->
+                                            statusText += "\n$log"
+                                        }
+                                        prefs.edit().putFloat("ipad_view_scale", resScale).apply()
+                                        isProcessing = false
+                                        triggerFeedback(false) // Success/Finish sound
+                                    }
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = NeonCrimson.copy(alpha = 0.8f)),
                                 shape = CutCornerShape(8.dp)
                             ) {
-                                Text("APPLY IPAD VIEW", fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                Text("APPLY IPAD VIEW", style = TerminalTextStyle, fontSize = 9.sp)
                             }
                             
                             Spacer(modifier = Modifier.width(8.dp))
                             
                             Button(
-                                onClick = {
+                                onClick = {}, // Handled by tacticalPress
+                                modifier = Modifier.weight(1f).height(38.dp).tacticalPress {
                                     triggerFeedback(true)
                                     if (!isConnected) {
                                         Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
-                                        return@Button
+                                        return@tacticalPress
                                     }
                                     scope.launch {
                                         isProcessing = true
@@ -181,12 +200,11 @@ fun GfxExtraFeaturesScreen() {
                                         triggerFeedback(false) // Finish sound
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(38.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray.copy(alpha = 0.5f)),
                                 shape = CutCornerShape(8.dp),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
                             ) {
-                                Text("RESET RESOLUTION", fontWeight = FontWeight.Bold, fontSize = 9.sp, textAlign = TextAlign.Center)
+                                Text("RESET RESOLUTION", style = TerminalTextStyle, fontSize = 8.sp, textAlign = TextAlign.Center)
                             }
                         }
                     }
@@ -340,10 +358,10 @@ fun GfxExtraFeaturesScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "SECURE ENGINE PROTOCOL v0.5",
+                        text = "SECURE ENGINE PROTOCOL v0.6",
                         color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = TerminalTextStyle,
+                        fontSize = 8.sp,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         letterSpacing = 1.sp
                     )

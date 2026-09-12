@@ -20,14 +20,14 @@ import java.util.zip.ZipInputStream
  */
 object GfxConfigManager {
     private const val TAG = "GfxConfigManager"
-    private const val CONFIG_VERSION_DIR = "config_v0_5"
+    private const val CONFIG_VERSION_DIR = "0.6"
     
     private val client = OkHttpClient()
 
     private val fpsUrls = mapOf(
-        "120FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.5version/120FPS.zip",
-        "90FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.5version/90FPS.zip",
-        "60FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.5version/60FPS.zip"
+        "120FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.6version/120FPS.zip",
+        "90FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.6version/90FPS.zip",
+        "60FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.6version/60FPS.zip"
     )
 
     /**
@@ -60,9 +60,11 @@ object GfxConfigManager {
         }
     }
 
+    data class CommandResult(val success: Boolean, val exitCode: Int, val error: String)
+
     /**
      * Core function to apply FPS configuration.
-     * Handles v0.5 local storage caching, unzipping, and robust Shizuku injection.
+     * Handles v0.6 local storage caching, unzipping, and robust Shizuku injection.
      */
     suspend fun applyFpsConfig(
         fps: String, 
@@ -82,8 +84,8 @@ object GfxConfigManager {
                 return@withContext
             }
 
-            // 1. SETUP LOCAL STORAGE
-            val localDir = context.getExternalFilesDir(CONFIG_VERSION_DIR) ?: throw IOException("App storage unreachable")
+            // 1. SETUP LOCAL STORAGE (External Files Dir to bypass Shizuku Permission Denied)
+            val localDir = context.getExternalFilesDir(CONFIG_VERSION_DIR) ?: throw IOException("External storage unreachable")
             if (!localDir.exists()) localDir.mkdirs()
 
             // Cleanup legacy data
@@ -93,51 +95,72 @@ object GfxConfigManager {
             val extractDir = File(localDir, "extracted_$fps")
             
             // 2. SMART CACHE & DOWNLOAD
-            if (zipFile.exists() && zipFile.length() > 0) {
-                onProgress("[CACHE HIT] Local v0.5 config archive found. Applying offline...")
+            val cachedFilesDir = findFilesDirectory(extractDir)
+            if (cachedFilesDir != null && cachedFilesDir.exists()) {
+                onProgress("> LOCAL CACHE FOUND. SKIPPING DOWNLOAD.")
+            } else if (zipFile.exists() && zipFile.length() > 0) {
+                onProgress("> LOCAL CACHE FOUND. SKIPPING DOWNLOAD.")
+                // Still need to unzip if extracted files don't exist but zip does
+                if (extractDir.exists()) extractDir.deleteRecursively()
+                extractDir.mkdirs()
+                unzip(zipFile, extractDir)
             } else {
-                onProgress("[DOWNLOAD] Fetching v0.5 config archive from GitHub...")
+                onProgress("> DOWNLOADING v0.6 PAYLOAD...")
                 downloadFile(downloadUrl, zipFile)
-                onProgress("[DOWNLOAD] Downloaded v0.5 archive to local app data folder.")
+                
+                // VALIDATION 1: DOWNLOAD VALIDATION
+                if (!zipFile.exists() || zipFile.length() == 0L) {
+                    zipFile.delete()
+                    onProgress("> [ERROR] DOWNLOAD FAILED (INVALID URL OR NETWORK)")
+                    return@withContext
+                }
+
+                if (extractDir.exists()) extractDir.deleteRecursively()
+                extractDir.mkdirs()
+                unzip(zipFile, extractDir)
             }
 
-            // 3. PURE KOTLIN UNZIP
-            if (extractDir.exists()) extractDir.deleteRecursively()
-            extractDir.mkdirs()
+            // VALIDATION 2: ZIP EXTRACTION VALIDATION
+            val sourceFilesDir = findFilesDirectory(extractDir)
+            if (sourceFilesDir == null || !sourceFilesDir.exists()) {
+                onProgress("> [ERROR] 'files' DIRECTORY NOT FOUND IN ZIP")
+                return@withContext
+            }
+            
+            val gamePackagePath = "/storage/emulated/0/Android/data/$targetPackage"
 
-            onProgress("[UNZIP] Extracting configuration structure...")
-            unzip(zipFile, extractDir)
-            onProgress("[UNZIP] Extracted files successfully in app storage.")
+            onProgress("> INJECTING 'files' INTO PACKAGE DIRECTORY...")
 
-            // 4. ROBUST SHIZUKU INJECTION
-            val sourceFilesDir = findFilesDirectory(extractDir) ?: throw IOException("Inner 'Files' structure not found in zip")
-            val gameFilesPath = "/storage/emulated/0/Android/data/$targetPackage/files"
-
-            onProgress("[INJECT] Copying files via Shizuku to $gameFilesPath/...")
-
-            // a) Ensure target directory exists
-            runShizukuCommand("mkdir -p \"$gameFilesPath\"")
+            // a) Ensure target directory exists (the game's files folder)
+            val mkdirResult = runShizukuCommand("mkdir -p \"$gamePackagePath/files\"")
+            if (!mkdirResult.success) {
+                onProgress("> [ERROR] Shizuku: Failed to create game path (${mkdirResult.exitCode})")
+                return@withContext
+            }
             
             // b) Grant permissions to local extracted files so Shizuku shell can read them
-            runShizukuCommand("chmod -R 777 \"${extractDir.absolutePath}\"")
+            // Quoting the path to handle potential spaces
+            val chmodResult = runShizukuCommand("chmod -R 777 \"${localDir.absolutePath}\"")
+            if (!chmodResult.success) {
+                Log.w(TAG, "Chmod warning: ${chmodResult.error}")
+            }
             
-            // c) Force-copy extracted contents directly into game path
-            val injectResult = runShizukuCommand("cp -rf \"${sourceFilesDir.absolutePath}/\"* \"$gameFilesPath/\"")
+            // c) Force-copy extracted 'files' folder directly into game package root
+            // This will merge/overwrite the 'files' directory inside the target game path.
+            val injectCommand = "cp -rf '${sourceFilesDir.absolutePath}' '${gamePackagePath}/'"
+            val injectResult = runShizukuCommand(injectCommand)
 
-            // 5. CLEANUP extraction residue
-            extractDir.deleteRecursively()
-
-            if (injectResult) {
-                onProgress("[SUCCESS] GFX Config v0.5 Applied Successfully!")
-                showToast(context, "Config applied successfully!")
+            if (injectResult.success) {
+                onProgress("> SUCCESS: SYSTEM OVERDRIVE ACTIVE.")
+                showToast(context, "Engine Overdrive Active!")
             } else {
-                onProgress("[ERROR] Shizuku injection command failed.")
+                onProgress("> [ERROR] Shizuku: ${injectResult.error} (Code: ${injectResult.exitCode})")
             }
 
         } catch (e: Exception) {
             val errorMsg = e.localizedMessage ?: "Unknown Error"
             Log.e(TAG, "Process Failed", e)
-            onProgress("[ERROR] Process Failed: $errorMsg")
+            onProgress("> [ERROR] Shizuku: $errorMsg")
         }
     }
 
@@ -181,7 +204,7 @@ object GfxConfigManager {
         }
     }
 
-    private fun runShizukuCommand(command: String): Boolean {
+    private fun runShizukuCommand(command: String): CommandResult {
         return try {
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
             val newProcessMethod = shizukuClass.getDeclaredMethod(
@@ -200,14 +223,15 @@ object GfxConfigManager {
             ) as Process
             
             val exitCode = process.waitFor()
+            val errorStream = process.errorStream.bufferedReader().readText().trim()
+            
             if (exitCode != 0) {
-                val error = process.errorStream.bufferedReader().readText()
-                Log.e(TAG, "Command failed ($exitCode): $error")
+                Log.e(TAG, "Command failed ($exitCode): $errorStream")
             }
-            exitCode == 0
+            CommandResult(exitCode == 0, exitCode, errorStream)
         } catch (e: Exception) {
             Log.e(TAG, "Shizuku Exec Error", e)
-            false
+            CommandResult(false, -1, e.message ?: "Execution Exception")
         }
     }
 
