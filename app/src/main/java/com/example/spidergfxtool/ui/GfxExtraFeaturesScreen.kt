@@ -358,7 +358,7 @@ fun GfxExtraFeaturesScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "SECURE ENGINE PROTOCOL v0.6",
+                        text = "SECURE ENGINE PROTOCOL v0.8",
                         color = Color.White.copy(alpha = 0.6f),
                         style = TerminalTextStyle,
                         fontSize = 8.sp,

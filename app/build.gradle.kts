@@ -11,10 +11,15 @@ android {
         applicationId = "com.example.spidergfxtool"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.6"
+        versionCode = 7
+        versionName = "0.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters.add("arm64-v8a")
+            abiFilters.add("armeabi-v7a")
+        }
     }
 
     buildTypes {

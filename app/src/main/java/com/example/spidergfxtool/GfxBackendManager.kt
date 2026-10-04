@@ -50,44 +50,11 @@ object GfxBackendManager {
     }
 
     /**
-     * Bulletproof command execution wrapper.
+     * Bulletproof command execution wrapper using SmartEngine.
      * Prevents tool/game crashes if kernel nodes are missing or Shizuku fails.
      */
-    fun executeShizukuSafe(command: String): Result<String> {
-        return try {
-            if (!Shizuku.pingBinder()) {
-                return Result.failure(Exception("Shizuku binder unreachable"))
-            }
-
-            val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
-            val newProcessMethod = shizukuClass.getDeclaredMethod(
-                "newProcess",
-                Array<String>::class.java,
-                Array<String>::class.java,
-                String::class.java
-            )
-            newProcessMethod.isAccessible = true
-            
-            val process = newProcessMethod.invoke(
-                null, 
-                arrayOf("sh", "-c", command), 
-                null, 
-                null
-            ) as java.lang.Process
-
-            val output = process.inputStream.bufferedReader().readText()
-            val error = process.errorStream.bufferedReader().readText()
-            val exitCode = process.waitFor()
-
-            if (exitCode == 0) {
-                Result.success(output.trim())
-            } else {
-                Result.failure(Exception("Shell error ($exitCode): ${error.trim()}"))
-            }
-        } catch (e: Exception) {
-            Log.w("GFX_WATCHDOG", "Kernel/Shizuku Command Suppressed: $command | Error: ${e.localizedMessage}")
-            Result.failure(e)
-        }
+    suspend fun executeShizukuSafe(command: String): Result<String> {
+        return SmartEngine.executeRaw(command)
     }
 
     /**
@@ -103,6 +70,10 @@ object GfxBackendManager {
      * Automatically detects if a command is package-specific and runs it for ALL installed PUBG versions.
      */
     suspend fun runShell(context: Context?, command: String): Result<String> = withContext(Dispatchers.IO) {
+        if (!Shizuku.pingBinder()) {
+            return@withContext Result.failure(Exception("[ERROR] Shizuku engine offline. Please start Shizuku via Wireless Debugging."))
+        }
+
         val installed = context?.let { getInstalledGamePackages(it) } ?: emptyList()
         
         // Determine if this is a package-specific command
@@ -519,7 +490,9 @@ object GfxBackendManager {
                     // Revert Game Mode for all installed variants
                     val installed = getInstalledGamePackages(context)
                     installed.forEach { pkg ->
-                        executeShizukuSafe("cmd game mode standard $pkg")
+                        executeShizukuSafe("cmd game mode standard $pkg 2>/dev/null")
+                        executeShizukuSafe("am set-standby-bucket $pkg working_set 2>/dev/null")
+                        executeShizukuSafe("dumpsys deviceidle whitelist -$pkg 2>/dev/null")
                     }
                     Log.i("GFX_SAFETY", "Overclocking parameters reverted to stock.")
                 }
@@ -531,13 +504,13 @@ object GfxBackendManager {
 
     /**
      * Executes a master system reset via Shizuku to restore all tweaked parameters to defaults.
-     * Uses the Watchdog Safe Wrapper to prevent kernel panics on unsupported devices.
+     * Uses SmartEngine to prevent kernel panics on unsupported devices.
      */
     suspend fun runMasterReset(context: Context) = withContext(Dispatchers.IO) {
         try {
-            if (!Shizuku.pingBinder()) return@withContext
+            if (!SmartEngine.isShizukuReady()) return@withContext
 
-            val commands = listOf(
+            val commands = mutableListOf(
                 "cmd thermalservice reset",
                 "device_config delete activity_manager max_phantom_processes",
                 "setprop ro.lmk.kill_heaviest_task true",
@@ -546,11 +519,7 @@ object GfxBackendManager {
                 "setprop debug.hwui.renderer opengl",
                 "settings put global debug.force_msaa false",
                 "setprop debug.hwui.disable_vsync false",
-                "settings delete global tcp_default_init_rwnd",
-                "ifconfig wlan0 mtu 1500",
                 "settings put system pointer_speed 0",
-                "pm enable --user 0 com.samsung.android.game.gos",
-                "pm enable --user 0 com.xiaomi.joyose",
                 "dumpsys battery reset",
                 "sysctl -w vm.swappiness=60",
                 "start logd",
@@ -559,8 +528,15 @@ object GfxBackendManager {
                 "wm density reset"
             )
 
+            if (SmartEngine.verifySamsungGos()) {
+                commands.add("pm enable --user 0 com.samsung.android.game.gos")
+            }
+            if (SmartEngine.verifyXiaomiJoyose()) {
+                commands.add("pm enable --user 0 com.xiaomi.joyose")
+            }
+
             commands.forEach { cmd ->
-                executeShizukuSafe(cmd)
+                SmartEngine.executeRaw(cmd)
             }
             Log.i("GFX_MASTER_RESET", "All system parameters restored to factory defaults.")
         } catch (e: Exception) {

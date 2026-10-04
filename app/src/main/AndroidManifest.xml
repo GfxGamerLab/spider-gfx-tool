@@ -73,7 +73,12 @@
         </activity>
 
         <service
-            android:name=".HudOverlayService"
+            android:name=".RealTimeHudService"
+            android:enabled="true"
+            android:exported="false" />
+
+        <service
+            android:name=".CrosshairService"
             android:enabled="true"
             android:exported="false" />
 

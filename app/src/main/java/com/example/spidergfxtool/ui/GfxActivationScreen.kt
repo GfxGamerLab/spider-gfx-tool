@@ -53,7 +53,7 @@ import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val ACCESS_KEY = "GFXGAMERLAB0"
+private const val ACCESS_KEY = "73365"
 
 @Composable
 fun GfxActivationScreen(onActivated: () -> Unit) {
@@ -161,7 +161,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                         letterSpacing = 8.sp
                     )
                     Text(
-                        text = "V0.6 STABILITY PROTOCOL", 
+                        text = "V0.8 STABILITY PROTOCOL", 
                         color = Color(0xFFFF3131).copy(alpha = 0.7f), 
                         style = TerminalTextStyle,
                         fontSize = 10.sp,
@@ -224,9 +224,9 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                         .shadow(20.dp, CutCornerShape(16.dp), spotColor = glowColor)
                         .tacticalPress {
                             // 1. Validation Logic
-                            val processedInput = keyInput.replace("\\s+".toRegex(), "")
+                            val processedInput = keyInput.trim()
                             
-                            if (processedInput.equals(ACCESS_KEY, ignoreCase = true)) {
+                            if (processedInput == ACCESS_KEY) {
                                 // SUCCESS PATH
                                 try {
                                     val mp = MediaPlayer.create(context, R.raw.correct_key)
@@ -294,22 +294,8 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // SOCIAL ICONS
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(tween(1000, 1200))
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SocialIcon("YT", "https://youtube.com/@gfxgamerlab_1", Color.Red)
-                    SocialIcon("TG", "https://t.me/gfxgamerlab", Color(0xFF24A1DE))
-                    SocialIcon("WA", "https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l", Color(0xFF25D366))
-                }
-            }
-
             Spacer(modifier = Modifier.height(32.dp))
-            GlobalCommunityFooter()
+            GlobalCommunityFooter(showTutorials = false)
         }
     }
 }

@@ -80,7 +80,10 @@ fun CyberTweakCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
@@ -91,11 +94,14 @@ fun CyberTweakCard(
                         Text(
                             text = title,
                             color = Color.White,
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
+                            letterSpacing = 1.sp,
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "ID: $statusHex",
                         color = NeonCrimson.copy(alpha = 0.4f),
@@ -111,7 +117,7 @@ fun CyberTweakCard(
                 content()
                 
                 Row(modifier = Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Text("SECURE ENGINE PROTOCOL v0.6", color = Color.White.copy(alpha = 0.1f), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    Text("SECURE ENGINE PROTOCOL v0.8", color = Color.White.copy(alpha = 0.1f), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
             }
         }
@@ -310,7 +316,7 @@ fun SocialIcon(name: String, url: String, color: Color) {
 }
 
 @Composable
-fun GlobalCommunityFooter(modifier: Modifier = Modifier) {
+fun GlobalCommunityFooter(modifier: Modifier = Modifier, showTutorials: Boolean = true) {
     val context = LocalContext.current
 
     Column(
@@ -320,34 +326,36 @@ fun GlobalCommunityFooter(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // --- VIDEO TUTORIALS SECTION ---
-        Text(
-            text = "VIDEO TUTORIALS",
-            color = Color.White.copy(alpha = 0.6f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 2.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        if (showTutorials) {
+            Text(
+                text = "VIDEO TUTORIALS",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TutorialThumbnailCard(
-                modifier = Modifier.weight(1f),
-                title = "Tutorial Video in English",
-                thumbnailUrl = "https://img.youtube.com/vi/JOMh3uegKVk/maxresdefault.jpg",
-                videoUrl = "https://youtu.be/JOMh3uegKVk"
-            )
-            TutorialThumbnailCard(
-                modifier = Modifier.weight(1f),
-                title = "Tutorial Video in Hindi/Urdu",
-                thumbnailUrl = "https://img.youtube.com/vi/HuuldKpzVsU/maxresdefault.jpg",
-                videoUrl = "https://youtu.be/HuuldKpzVsU"
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TutorialThumbnailCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Tutorial Video in English",
+                    thumbnailUrl = "https://img.youtube.com/vi/JOMh3uegKVk/maxresdefault.jpg",
+                    videoUrl = "https://youtu.be/JOMh3uegKVk"
+                )
+                TutorialThumbnailCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Tutorial Video in Hindi/Urdu",
+                    thumbnailUrl = "https://img.youtube.com/vi/HuuldKpzVsU/maxresdefault.jpg",
+                    videoUrl = "https://youtu.be/HuuldKpzVsU"
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
 
         // --- SOCIAL MEDIA LINKS SECTION ---
         Text(
@@ -359,24 +367,61 @@ fun GlobalCommunityFooter(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SocialFooterButton("YouTube", Color.Red) {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@GfxGamerLab_1")))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SocialFooterButton("YouTube", Color.Red, modifier = Modifier.weight(1f)) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/@GfxGamerLab_1"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                SocialFooterButton("Telegram", Color(0xFF24A1DE), modifier = Modifier.weight(1f)) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/gfxgamerlab"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
-            SocialFooterButton("Telegram", Color(0xFF24A1DE)) {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/gfxgamerlab")))
-            }
-            SocialFooterButton("WhatsApp", Color(0xFF25D366)) {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l")))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SocialFooterButton("WhatsApp", Color(0xFF25D366), modifier = Modifier.weight(1f)) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://whatsapp.com/channel/0029VbB1E5VFsn0o8MNoAp2l"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                SocialFooterButton("TikTok", Color(0xFFEE1D52), modifier = Modifier.weight(1f)) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.tiktok.com/@gfxgamerlab?_r=1&_t=ZS-99gzTXWIINh"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             }
         }
         
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "SECURE ENGINE PROTOCOL v0.6",
+            text = "SECURE ENGINE PROTOCOL v0.8",
             color = Color.White.copy(alpha = 0.1f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold
@@ -620,13 +665,12 @@ fun TutorialThumbnailCard(
 fun SocialFooterButton(
     text: String,
     color: Color,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Surface(
-        onClick = {}, // Handled by tacticalPress
-        modifier = Modifier
+        modifier = modifier
             .height(36.dp)
-            .widthIn(min = 90.dp)
             .tacticalPress {
                 SoundEffectsManager.playOn()
                 onClick()

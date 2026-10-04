@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Central Aim Dot -->
+    <path
+        android:fillColor="#FFFF1744"
+        android:pathData="M24,24m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+
+    <!-- Outer Ring -->
+    <path
+        android:strokeColor="#AAFF1744"
+        android:strokeWidth="1.5"
+        android:pathData="M24,24m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+
+    <!-- Vertical Lines -->
+    <path
+        android:strokeColor="#FFFF1744"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M24,8L24,14 M24,34L24,40" />
+
+    <!-- Horizontal Lines -->
+    <path
+        android:strokeColor="#FFFF1744"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M8,24L14,24 M34,24L40,24" />
+</vector>

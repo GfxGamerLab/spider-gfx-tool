@@ -16,43 +16,32 @@ import java.util.zip.ZipInputStream
 
 /**
  * Elite GFX Config Manager for Download, Extract, and Shizuku-based Injection.
- * Refactored for v0.5 with robust local storage and Shizuku safety.
+ * Refactored for v0.7 with External Secure Storage and Shizuku safety.
  */
 object GfxConfigManager {
     private const val TAG = "GfxConfigManager"
-    private const val CONFIG_VERSION_DIR = "0.6"
+    private const val VERSION_FOLDER = "0.7_Version"
     
     private val client = OkHttpClient()
 
     private val fpsUrls = mapOf(
-        "120FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.6version/120FPS.zip",
-        "90FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.6version/90FPS.zip",
-        "60FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.6version/60FPS.zip"
+        "120FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.7/%20Version/120FPS.zip",
+        "90FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.7/%20Version/90FPS.zip",
+        "60FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.7/%20Version/60FPS.zip"
     )
 
-    /**
-     * Scans for and removes legacy configuration folders from previous versions.
-     */
-    private fun cleanupLegacyConfigs(context: Context) {
-        try {
-            // Cleanup legacy external folders
-            val externalDir = context.getExternalFilesDir(null)
-            val legacyFolders = listOf("Spider_V4_Configs", "fps_configs", "extracted_fps")
-            
-            legacyFolders.forEach { folderName ->
-                val folder = File(externalDir, folderName)
-                if (folder.exists()) {
-                    folder.deleteRecursively()
-                }
-            }
+    data class CommandResult(val success: Boolean, val exitCode: Int, val error: String)
 
-            // Cleanup legacy internal cache folders
-            val cacheDir = context.cacheDir
-            val legacyInternal = listOf("config_v0_4")
-            legacyInternal.forEach { folderName ->
-                val folder = File(cacheDir, folderName)
-                if (folder.exists()) {
-                    folder.deleteRecursively()
+    /**
+     * Cleans up any old or mismatched version folders from the external files directory.
+     */
+    private fun cleanupOldVersions(context: Context) {
+        try {
+            val root = context.getExternalFilesDir(null) ?: return
+            root.listFiles()?.forEach { file ->
+                if (file.isDirectory && file.name != VERSION_FOLDER) {
+                    Log.d(TAG, "Cleaning up old version: ${file.name}")
+                    file.deleteRecursively()
                 }
             }
         } catch (e: Exception) {
@@ -60,11 +49,9 @@ object GfxConfigManager {
         }
     }
 
-    data class CommandResult(val success: Boolean, val exitCode: Int, val error: String)
-
     /**
      * Core function to apply FPS configuration.
-     * Handles v0.6 local storage caching, unzipping, and robust Shizuku injection.
+     * Handles v0.7 external storage caching, unzipping, and robust Shizuku injection.
      */
     suspend fun applyFpsConfig(
         fps: String, 
@@ -80,78 +67,73 @@ object GfxConfigManager {
         try {
             // 0. PRE-FLIGHT: SHIZUKU CHECK
             if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                onProgress("[ERROR] Shizuku permission not granted or service offline!")
+                onProgress("[ERROR] Shizuku engine offline. Please start Shizuku via Wireless Debugging.")
                 return@withContext
             }
 
-            // 1. SETUP LOCAL STORAGE (External Files Dir to bypass Shizuku Permission Denied)
-            val localDir = context.getExternalFilesDir(CONFIG_VERSION_DIR) ?: throw IOException("External storage unreachable")
-            if (!localDir.exists()) localDir.mkdirs()
+            // 1. SELF-CLEANING & VERSION CONTROL
+            cleanupOldVersions(context)
 
-            // Cleanup legacy data
-            cleanupLegacyConfigs(context)
+            // 2. SETUP STORAGE (getExternalFilesDir to avoid internal permission blocks)
+            val baseDir = File(context.getExternalFilesDir(null), VERSION_FOLDER)
+            if (!baseDir.exists()) baseDir.mkdirs()
 
-            val zipFile = File(localDir, "$fps.zip")
-            val extractDir = File(localDir, "extracted_$fps")
+            val zipFile = File(baseDir, "$fps.zip")
+            val extractDir = File(baseDir, "Extracted_Config")
             
-            // 2. SMART CACHE & DOWNLOAD
-            val cachedFilesDir = findFilesDirectory(extractDir)
-            if (cachedFilesDir != null && cachedFilesDir.exists()) {
-                onProgress("> LOCAL CACHE FOUND. SKIPPING DOWNLOAD.")
-            } else if (zipFile.exists() && zipFile.length() > 0) {
-                onProgress("> LOCAL CACHE FOUND. SKIPPING DOWNLOAD.")
-                // Still need to unzip if extracted files don't exist but zip does
-                if (extractDir.exists()) extractDir.deleteRecursively()
-                extractDir.mkdirs()
-                unzip(zipFile, extractDir)
-            } else {
-                onProgress("> DOWNLOADING v0.6 PAYLOAD...")
+            // 3. SMART CACHE & CORRUPT CHECK
+            if (zipFile.exists()) {
+                if (zipFile.length() < 1024L) {
+                    onProgress("[CACHE] Corrupt/Empty file detected. Deleting...")
+                    zipFile.delete()
+                } else {
+                    onProgress("[CACHE] Valid file found. Skipping download.")
+                }
+            }
+
+            if (!zipFile.exists()) {
+                onProgress("> DOWNLOADING v0.7 PAYLOAD...")
                 downloadFile(downloadUrl, zipFile)
                 
-                // VALIDATION 1: DOWNLOAD VALIDATION
                 if (!zipFile.exists() || zipFile.length() == 0L) {
                     zipFile.delete()
                     onProgress("> [ERROR] DOWNLOAD FAILED (INVALID URL OR NETWORK)")
                     return@withContext
                 }
-
-                if (extractDir.exists()) extractDir.deleteRecursively()
-                extractDir.mkdirs()
-                unzip(zipFile, extractDir)
             }
 
-            // VALIDATION 2: ZIP EXTRACTION VALIDATION
+            // 4. EXTRACTION
+            onProgress("> EXTRACTING CONFIGURATION PAYLOAD...")
+            if (extractDir.exists()) extractDir.deleteRecursively()
+            extractDir.mkdirs()
+            unzip(zipFile, extractDir)
+
+            // VALIDATION: ZIP EXTRACTION VALIDATION
             val sourceFilesDir = findFilesDirectory(extractDir)
             if (sourceFilesDir == null || !sourceFilesDir.exists()) {
-                onProgress("> [ERROR] 'files' DIRECTORY NOT FOUND IN ZIP")
+                onProgress("> [ERROR] 'Files' DIRECTORY NOT FOUND IN ZIP")
                 return@withContext
             }
             
-            val gamePackagePath = "/storage/emulated/0/Android/data/$targetPackage"
+            val gameFilesPath = "/storage/emulated/0/Android/data/$targetPackage/files/"
 
-            onProgress("> INJECTING 'files' INTO PACKAGE DIRECTORY...")
+            onProgress("> INJECTING 'Files' INTO TARGET GAME...")
 
-            // a) Ensure target directory exists (the game's files folder)
-            val mkdirResult = runShizukuCommand("mkdir -p \"$gamePackagePath/files\"")
-            if (!mkdirResult.success) {
-                onProgress("> [ERROR] Shizuku: Failed to create game path (${mkdirResult.exitCode})")
-                return@withContext
-            }
+            // a) Ensure target directory exists via Shizuku shell
+            runShizukuCommand("mkdir -p \"$gameFilesPath\"")
             
-            // b) Grant permissions to local extracted files so Shizuku shell can read them
-            // Quoting the path to handle potential spaces
-            val chmodResult = runShizukuCommand("chmod -R 777 \"${localDir.absolutePath}\"")
-            if (!chmodResult.success) {
-                Log.w(TAG, "Chmod warning: ${chmodResult.error}")
-            }
-            
-            // c) Force-copy extracted 'files' folder directly into game package root
-            // This will merge/overwrite the 'files' directory inside the target game path.
-            val injectCommand = "cp -rf '${sourceFilesDir.absolutePath}' '${gamePackagePath}/'"
+            // b) Overwrite assets using explicit Shizuku copy command
+            // We copy contents of Files/ into the game's files/ folder
+            val injectCommand = "cp -rf \"${sourceFilesDir.absolutePath}/.\" \"$gameFilesPath\""
             val injectResult = runShizukuCommand(injectCommand)
 
             if (injectResult.success) {
-                onProgress("> SUCCESS: SYSTEM OVERDRIVE ACTIVE.")
+                onProgress("[SUCCESS] Injection successful! System Overdrive Active.")
+                
+                // 5. FINAL CLEANUP
+                onProgress("> PURGING TEMPORARY FILES...")
+                extractDir.deleteRecursively()
+                
                 showToast(context, "Engine Overdrive Active!")
             } else {
                 onProgress("> [ERROR] Shizuku: ${injectResult.error} (Code: ${injectResult.exitCode})")
