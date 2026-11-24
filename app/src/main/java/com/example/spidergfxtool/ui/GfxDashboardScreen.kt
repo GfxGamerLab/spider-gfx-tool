@@ -59,6 +59,7 @@ fun getDetectedVersions(context: android.content.Context): List<PubgVersion> {
         PubgVersion("KR", "com.pubg.krmobile"),
         PubgVersion("VN", "com.vng.pubgmobile"),
         PubgVersion("TW", "com.pubg.twmobile"),
+        PubgVersion("PUBG Flash", "com.tencent.igfit"),
     )
     return allPossible.filter { it.packageName in installed }
 }
@@ -97,7 +98,8 @@ fun GfxDashboardScreen() {
     val onVersionSelected: (PubgVersion) -> Unit = { version ->
         triggerFeedback(true)
         selectedVersion = version
-        statusText = "[SYSTEM] Selected Target: ${version.name}"
+        prefs.edit().putString("key_selected_target_pkg", version.packageName).apply()
+        statusText = "[SYSTEM] Selected Target: ${version.name} (${version.packageName})"
     }
 
     val onApplyFps: (Int) -> Unit = { fps ->
@@ -169,7 +171,7 @@ fun GfxDashboardScreen() {
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(1.1f)
-                    .padding(start = 24.dp, top = 12.dp, bottom = 12.dp, end = 12.dp)
+                    .padding(start = 12.dp, top = 54.dp, bottom = 12.dp, end = 12.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 // APP BRANDING LOGO
@@ -416,7 +418,7 @@ fun GfxDashboardScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "SECURE ENGINE PROTOCOL v0.8",
+                        text = "SECURE ENGINE PROTOCOL v9.0",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -499,6 +501,7 @@ fun VersionSelector(
         PubgVersion("KR", "com.pubg.krmobile"),
         PubgVersion("VN", "com.vng.pubgmobile"),
         PubgVersion("TW", "com.pubg.twmobile"),
+        PubgVersion("PUBG Flash", "com.tencent.igfit"),
     )
 
     @OptIn(ExperimentalLayoutApi::class)

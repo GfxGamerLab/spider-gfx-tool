@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.spidergfxtool"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.7"
+        versionCode = 9
+        versionName = "9.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -24,9 +24,12 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {

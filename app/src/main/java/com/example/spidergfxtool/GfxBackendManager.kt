@@ -25,7 +25,8 @@ object GfxBackendManager {
         "com.tencent.ig",
         "com.pubg.krmobile",
         "com.vng.pubgmobile",
-        "com.pubg.twmobile"
+        "com.pubg.twmobile",
+        "com.tencent.igfit"
     )
 
     fun getInstalledGamePackages(context: Context): List<String> {
@@ -34,7 +35,8 @@ object GfxBackendManager {
             "com.tencent.ig",
             "com.pubg.krmobile",
             "com.vng.pubgmobile",
-            "com.pubg.twmobile"
+            "com.pubg.twmobile",
+            "com.tencent.igfit"
         )
         val pm = context.packageManager
         return targets.filter { pkg ->
@@ -43,9 +45,14 @@ object GfxBackendManager {
     }
 
     /**
-     * Priority scan: Returns the FIRST installed game package found.
+     * Priority scan: Returns saved target package from SharedPreferences, or fallback to FIRST installed game package found.
      */
     fun getAutoDetectedGamePackage(context: Context): String {
+        val prefs = context.getSharedPreferences("spider_gfx_prefs", Context.MODE_PRIVATE)
+        val saved = prefs.getString("key_selected_target_pkg", null)
+        if (!saved.isNullOrBlank()) {
+            return saved
+        }
         return getInstalledGamePackages(context).firstOrNull() ?: "com.tencent.ig"
     }
 

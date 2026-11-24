@@ -6,7 +6,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 
 /**
- * Advanced DNS Latency Manager.
+ * Advanced Adaptive DNS Latency Manager.
  * Tests multiple providers in parallel and identifies the fastest route.
  */
 object SmartDnsManager {
@@ -14,7 +14,7 @@ object SmartDnsManager {
 
     data class DnsProvider(
         val name: String,
-        val ip: String, // Or target domain for default
+        val ip: String,
         val hostname: String? = null,
         val isDefault: Boolean = false
     )
@@ -24,10 +24,12 @@ object SmartDnsManager {
         val details: Map<String, Long>
     )
 
-    private val providers = listOf(
-        DnsProvider("Cloudflare", "1.1.1.1", "1dot1dot1dot1.cloudflare-dns.com"),
+    val providers = listOf(
+        DnsProvider("Cloudflare", "1.1.1.1", "one.one.one.one"),
         DnsProvider("Google DNS", "8.8.8.8", "dns.google"),
-        DnsProvider("ISP Default", "google.com", isDefault = true)
+        DnsProvider("Quad9", "9.9.9.9", "dns.quad9.net"),
+        DnsProvider("AdGuard", "94.140.14.14", "dns.adguard-dns.com"),
+        DnsProvider("ISP Baseline", "google.com", isDefault = true)
     )
 
     suspend fun findBestDns(): DnsResult = withContext(Dispatchers.IO) {

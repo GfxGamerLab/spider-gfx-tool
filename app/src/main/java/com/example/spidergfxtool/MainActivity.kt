@@ -4,7 +4,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -12,13 +12,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.Scaffold
-import com.example.spidergfxtool.ui.GfxActivationScreen
-import com.example.spidergfxtool.ui.GfxDashboardScreen
-import com.example.spidergfxtool.ui.GfxExtremeHudScreen
-import com.example.spidergfxtool.ui.GfxExtraFeaturesScreen
-import com.example.spidergfxtool.ui.AppHibernationScreen
-import com.example.spidergfxtool.ui.SpiderSplashScreen
-import com.example.spidergfxtool.ui.components.CyberDrawerOverlay
+import com.example.spidergfxtool.ui.*
+import com.example.spidergfxtool.ui.components.*
 import com.example.spidergfxtool.ui.theme.SpiderGFXToolTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -31,6 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import android.os.Build
+import android.view.WindowManager
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -53,9 +50,21 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // --- IMMERSIVE FULLSCREEN MODE (GAME STYLE) ---
+        // --- IMMERSIVE FULL-BLEED CUTOUT MODE (DARK THEME & SHORT EDGES) ---
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        window.setBackgroundDrawableResource(android.R.color.black)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
@@ -139,83 +148,79 @@ enum class DashboardPage { GFX_TOOL, SYSTEM_ENGINE, EXTRA_FEATURES, HIBERNATION 
 
 @Composable
 fun AppNavigation() {
-    var showSplash by remember { mutableStateOf(true) }
-    var isActivated by remember { mutableStateOf(false) }
+    var currentScreen by remember { mutableStateOf("splash") }
     var isDrawerOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    Scaffold(
-        bottomBar = {
-            if (!showSplash) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color.Black,
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                ) {
-                    AdsManager.BannerAdView()
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        AnimatedContent(
+            targetState = currentScreen,
+            transitionSpec = {
+                if (targetState == "main_dashboard") {
+                    (fadeIn(animationSpec = tween(800)) + scaleIn(initialScale = 0.8f, animationSpec = tween(800)))
+                        .togetherWith(fadeOut(animationSpec = tween(400)))
+                } else {
+                    fadeIn(animationSpec = tween(500)).togetherWith(fadeOut(animationSpec = tween(400)))
+                }
+            },
+            label = "ScreenTransition"
+        ) { screenState ->
+            when (screenState) {
+                "splash" -> {
+                    SpiderSplashScreen(onAnimationComplete = {
+                        currentScreen = "activation"
+                    })
+                }
+                "activation" -> {
+                    GfxActivationScreen(onActivated = {
+                        currentScreen = "main_dashboard"
+                    })
+                }
+                "main_dashboard" -> {
+                    GfxOverdriveDashboardScreen(onNavigateToAdvancedTool = {
+                        currentScreen = "advanced_tool"
+                    })
+                }
+                "advanced_tool" -> {
+                    DashboardNavigationWrapper(onNavigateBackToMain = {
+                        currentScreen = "main_dashboard"
+                    })
                 }
             }
-        },
-        containerColor = Color.Transparent
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            Crossfade(
-                targetState = if (showSplash) "splash" else if (!isActivated) "activation" else "dashboard",
-                animationSpec = tween(durationMillis = 1000),
-                label = "ScreenTransition"
-            ) { screenState ->
-                when (screenState) {
-                    "splash" -> {
-                        SpiderSplashScreen(onAnimationComplete = {
-                            showSplash = false
-                        })
-                    }
-                    "activation" -> {
-                        GfxActivationScreen(onActivated = {
-                            isActivated = true
-                        })
-                    }
-                    "dashboard" -> {
-                        DashboardNavigationWrapper()
-                    }
-                }
-            }
-
-            // Floating Hamburger Icon (Global)
-            if (!showSplash) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                        .zIndex(150f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CyberResetIcon(
-                        onClick = {
-                            val scope = CoroutineScope(Dispatchers.Main)
-                            scope.launch {
-                                resetAllTweaks(context)
-                            }
-                        }
-                    )
-                    
-                    CyberHamburgerIcon(
-                        onClick = { isDrawerOpen = true }
-                    )
-                }
-            }
-
-            // Global Cyber Drawer
-            CyberDrawerOverlay(
-                isOpen = isDrawerOpen,
-                onClose = { isDrawerOpen = false }
-            )
         }
+
+        // Floating Hamburger Icon (Global Top End)
+        if (currentScreen != "splash") {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 10.dp, end = 16.dp)
+                    .zIndex(150f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CyberResetIcon(
+                    onClick = {
+                        val scope = CoroutineScope(Dispatchers.Main)
+                        scope.launch {
+                            resetAllTweaks(context)
+                        }
+                    }
+                )
+                
+                CyberHamburgerIcon(
+                    onClick = { isDrawerOpen = true }
+                )
+            }
+        }
+
+        // Global Cyber Drawer
+        CyberDrawerOverlay(
+            isOpen = isDrawerOpen,
+            onClose = { isDrawerOpen = false }
+        )
     }
 }
 
@@ -249,7 +254,7 @@ fun CyberHamburgerIcon(modifier: Modifier = Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-fun DashboardNavigationWrapper() {
+fun DashboardNavigationWrapper(onNavigateBackToMain: (() -> Unit)? = null) {
     var currentPage by remember { mutableStateOf(DashboardPage.SYSTEM_ENGINE) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -257,6 +262,7 @@ fun DashboardNavigationWrapper() {
         CyberNavigationSwitcher(
             currentPage = currentPage,
             onPageSelected = { currentPage = it },
+            onNavigateBackToMain = onNavigateBackToMain,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 16.dp)
@@ -280,10 +286,13 @@ fun DashboardNavigationWrapper() {
     }
 }
 
+
+
 @Composable
 fun CyberNavigationSwitcher(
     currentPage: DashboardPage,
     onPageSelected: (DashboardPage) -> Unit,
+    onNavigateBackToMain: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -294,6 +303,13 @@ fun CyberNavigationSwitcher(
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (onNavigateBackToMain != null) {
+            SwitcherItem(
+                text = "HUB",
+                isSelected = false,
+                onClick = { onNavigateBackToMain() }
+            )
+        }
         SwitcherItem(
             text = "GFX TOOL",
             isSelected = currentPage == DashboardPage.GFX_TOOL,

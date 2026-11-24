@@ -1,6 +1,5 @@
 package com.example.spidergfxtool.ui
 
-import android.content.Intent
 import android.media.MediaPlayer
 import android.net.Uri
 import android.view.animation.OvershootInterpolator
@@ -53,15 +52,10 @@ import com.example.spidergfxtool.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val ACCESS_KEY = "73365"
-
 @Composable
 fun GfxActivationScreen(onActivated: () -> Unit) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    var keyInput by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
     var isVisible by remember { mutableStateOf(false) }
     
     val infiniteTransition = rememberInfiniteTransition(label = "DashboardGlow")
@@ -161,7 +155,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                         letterSpacing = 8.sp
                     )
                     Text(
-                        text = "V0.8 STABILITY PROTOCOL", 
+                        text = "V9.0 STABILITY PROTOCOL", 
                         color = Color(0xFFFF3131).copy(alpha = 0.7f), 
                         style = TerminalTextStyle,
                         fontSize = 10.sp,
@@ -172,47 +166,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // INPUT FIELD
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(tween(800, 400)) + slideInVertically(initialOffsetY = { 40 }, animationSpec = tween(800, 400))
-            ) {
-                OutlinedTextField(
-                    value = keyInput,
-                    onValueChange = { keyInput = it },
-                    label = { Text("PROTOCOL KEY", color = Color.Gray, fontSize = 12.sp) },
-                    placeholder = { Text("Enter Encryption Key...", color = Color.DarkGray) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(10.dp, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    singleLine = true,
-                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                        IconButton(onClick = { 
-                            SoundEffectsManager.playOn()
-                            SoundEffectsManager.performHaptic(haptic)
-                            passwordVisible = !passwordVisible 
-                        }) {
-                            Icon(imageVector = icon, contentDescription = null, tint = Color(0xFFFF3131))
-                        }
-                    },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = Color(0xFFFF3131),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                        cursorColor = Color(0xFFFF3131),
-                        focusedContainerColor = Color.Black.copy(alpha = 0.6f),
-                        unfocusedContainerColor = Color.Black.copy(alpha = 0.4f)
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // BUTTON (FIXED: Replaced ElevatedButton with Surface to resolve tacticalPress conflict)
+            // CONTINUE BUTTON
             AnimatedVisibility(
                 visible = isVisible,
                 enter = fadeIn(tween(800, 600)) + slideInVertically(initialOffsetY = { 60 }, animationSpec = tween(800, 600))
@@ -220,33 +174,18 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(52.dp)
                         .shadow(20.dp, CutCornerShape(16.dp), spotColor = glowColor)
                         .tacticalPress {
-                            // 1. Validation Logic
-                            val processedInput = keyInput.trim()
+                            try {
+                                val mp = MediaPlayer.create(context, R.raw.correct_key)
+                                mp?.start()
+                                mp?.setOnCompletionListener { it.release() }
+                            } catch (e: Exception) { /* Fallback if audio fails */ }
                             
-                            if (processedInput == ACCESS_KEY) {
-                                // SUCCESS PATH
-                                try {
-                                    val mp = MediaPlayer.create(context, R.raw.correct_key)
-                                    mp?.start()
-                                    mp?.setOnCompletionListener { it.release() }
-                                } catch (e: Exception) { /* Fallback if audio fails */ }
-                                
-                                scope.launch {
-                                    delay(2500)
-                                    onActivated()
-                                }
-                            } else {
-                                // FAILURE PATH
-                                try {
-                                    val mp = MediaPlayer.create(context, R.raw.wrong_key)
-                                    mp?.start()
-                                    mp?.setOnCompletionListener { it.release() }
-                                } catch (e: Exception) { /* Fallback */ }
-                                
-                                Toast.makeText(context, "Encryption Key Rejected!", Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                delay(300)
+                                onActivated()
                             }
                         },
                     shape = CutCornerShape(16.dp),
@@ -256,45 +195,18 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Text(
-                            text = "INITIALIZE ENGINE", 
+                            text = "CONTINUE", 
                             style = TerminalTextStyle,
-                            fontSize = 14.sp,
-                            letterSpacing = 2.sp
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 4.sp
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // FOOTER JOIN
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(tween(1000, 1000))
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("join channel for key", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Surface(
-                        onClick = {
-                            SoundEffectsManager.playOn()
-                            SoundEffectsManager.performHaptic(haptic)
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/gfxgamerlab"))
-                            context.startActivity(intent)
-                        },
-                        modifier = Modifier.height(34.dp).width(75.dp),
-                        color = Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(1.dp, Color(0xFFFF3131).copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("JOIN", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
             GlobalCommunityFooter(showTutorials = false)
         }
     }

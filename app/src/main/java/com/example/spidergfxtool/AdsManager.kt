@@ -104,4 +104,23 @@ object AdsManager {
             loadInterstitial(activity) // Try loading for next time
         }
     }
+
+    /**
+     * Executes the action first, then opens the smart Ad link in the external browser.
+     */
+    fun executeWithAd(context: Context, action: () -> Unit) {
+        val adUrl = "https://hankperryeugene.com/de7j79ut?key=4dd3674d2c81383319cd6dd656477690"
+        
+        // 1. Execute the tool's intended action first (so it's ready when they return)
+        action.invoke()
+        
+        // 2. Open the Ad in the external browser
+        try {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(adUrl))
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

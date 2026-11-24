@@ -26,7 +26,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.layout.ContentScale
@@ -117,7 +121,7 @@ fun CyberTweakCard(
                 content()
                 
                 Row(modifier = Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Text("SECURE ENGINE PROTOCOL v0.8", color = Color.White.copy(alpha = 0.1f), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    Text("SECURE ENGINE PROTOCOL v9.0", color = Color.White.copy(alpha = 0.1f), fontSize = 8.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
             }
         }
@@ -175,8 +179,60 @@ fun CyberpunkToggle(
     }
 }
 
+fun buildTerminalAnnotatedString(text: String, defaultColor: Color): androidx.compose.ui.text.AnnotatedString {
+    return buildAnnotatedString {
+        val lines = text.split("\n")
+        lines.forEachIndexed { index, line ->
+            var currentPos = 0
+            while (currentPos < line.length) {
+                when {
+                    line.startsWith("[SUCCESS]", ignoreCase = true, startIndex = currentPos) -> {
+                        withStyle(SpanStyle(color = Color(0xFF00FF00), fontWeight = FontWeight.Bold)) {
+                            append("[SUCCESS]")
+                        }
+                        currentPos += "[SUCCESS]".length
+                    }
+                    line.startsWith("[SYSTEM]", ignoreCase = true, startIndex = currentPos) -> {
+                        withStyle(SpanStyle(color = Color(0xFF00FFFF), fontWeight = FontWeight.Bold)) {
+                            append("[SYSTEM]")
+                        }
+                        currentPos += "[SYSTEM]".length
+                    }
+                    line.startsWith("[INFO]", ignoreCase = true, startIndex = currentPos) -> {
+                        withStyle(SpanStyle(color = Color(0xFF00FFFF), fontWeight = FontWeight.Bold)) {
+                            append("[INFO]")
+                        }
+                        currentPos += "[INFO]".length
+                    }
+                    line.startsWith("[ERROR]", ignoreCase = true, startIndex = currentPos) -> {
+                        withStyle(SpanStyle(color = Color(0xFFFF1744), fontWeight = FontWeight.Bold)) {
+                            append("[ERROR]")
+                        }
+                        currentPos += "[ERROR]".length
+                    }
+                    line.startsWith("[WARNING]", ignoreCase = true, startIndex = currentPos) -> {
+                        withStyle(SpanStyle(color = Color(0xFFFF9100), fontWeight = FontWeight.Bold)) {
+                            append("[WARNING]")
+                        }
+                        currentPos += "[WARNING]".length
+                    }
+                    else -> {
+                        withStyle(SpanStyle(color = defaultColor)) {
+                            append(line[currentPos].toString())
+                        }
+                        currentPos++
+                    }
+                }
+            }
+            if (index < lines.size - 1) {
+                append("\n")
+            }
+        }
+    }
+}
+
 /**
- * Animated Typewriter Text for Hacker Console effect.
+ * Animated Typewriter Text for Hacker Console effect with Color-Coded Prefixes.
  */
 @Composable
 fun TypewriterText(
@@ -211,13 +267,17 @@ fun TypewriterText(
         }
     }
 
+    val annotatedDisplay = remember(displayedText, cursorVisible, color) {
+        buildTerminalAnnotatedString(displayedText + (if (cursorVisible) "_" else " "), color)
+    }
+
     Text(
-        text = displayedText + (if (cursorVisible) "_" else " "),
-        color = color,
-        style = TerminalTextStyle,
-        fontSize = 9.sp,
-        lineHeight = 12.sp,
-        modifier = modifier
+        text = annotatedDisplay,
+        fontFamily = FontFamily.Monospace,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.5.sp,
+        modifier = modifier.padding(8.dp)
     )
 }
 
@@ -421,7 +481,7 @@ fun GlobalCommunityFooter(modifier: Modifier = Modifier, showTutorials: Boolean 
         
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "SECURE ENGINE PROTOCOL v0.8",
+            text = "SECURE ENGINE PROTOCOL v9.0",
             color = Color.White.copy(alpha = 0.1f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold
@@ -670,7 +730,7 @@ fun SocialFooterButton(
 ) {
     Surface(
         modifier = modifier
-            .height(36.dp)
+            .height(30.dp)
             .tacticalPress {
                 SoundEffectsManager.playOn()
                 onClick()
@@ -679,8 +739,8 @@ fun SocialFooterButton(
         border = BorderStroke(1.dp, color.copy(alpha = 0.5f)),
         shape = CutCornerShape(4.dp)
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
-            Text(text = text, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, letterSpacing = 1.sp)
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+            Text(text = text, color = Color.White, fontSize = 8.5.sp, fontWeight = FontWeight.Black, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, letterSpacing = 0.5.sp)
         }
     }
 }

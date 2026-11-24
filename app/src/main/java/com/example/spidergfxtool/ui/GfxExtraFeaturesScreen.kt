@@ -99,7 +99,7 @@ fun GfxExtraFeaturesScreen() {
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(1.1f)
-                    .padding(start = 24.dp, top = 12.dp, bottom = 12.dp, end = 12.dp)
+                    .padding(start = 12.dp, top = 54.dp, bottom = 12.dp, end = 12.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
@@ -141,7 +141,7 @@ fun GfxExtraFeaturesScreen() {
                                 onClick = {
                                     triggerFeedback(true)
                                     if (!isConnected) {
-                                        Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Shizuku not connected. Please connect Shizuku.", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
                                     scope.launch {
@@ -152,26 +152,10 @@ fun GfxExtraFeaturesScreen() {
                                         }
                                         prefs.edit().putFloat("ipad_view_scale", resScale).apply()
                                         isProcessing = false
-                                        triggerFeedback(false) // Success/Finish sound
+                                        triggerFeedback(false)
                                     }
                                 },
-                                modifier = Modifier.weight(1f).height(38.dp).tacticalPress { 
-                                    triggerFeedback(true)
-                                    if (!isConnected) {
-                                        Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
-                                        return@tacticalPress
-                                    }
-                                    scope.launch {
-                                        isProcessing = true
-                                        statusText = "[SYSTEM] Applying Hardware Aspect Override..."
-                                        GfxBackendManager.applyWidthIpadView(context, resScale) { log ->
-                                            statusText += "\n$log"
-                                        }
-                                        prefs.edit().putFloat("ipad_view_scale", resScale).apply()
-                                        isProcessing = false
-                                        triggerFeedback(false) // Success/Finish sound
-                                    }
-                                },
+                                modifier = Modifier.weight(1f).height(38.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = NeonCrimson.copy(alpha = 0.8f)),
                                 shape = CutCornerShape(8.dp)
                             ) {
@@ -181,25 +165,27 @@ fun GfxExtraFeaturesScreen() {
                             Spacer(modifier = Modifier.width(8.dp))
                             
                             Button(
-                                onClick = {}, // Handled by tacticalPress
-                                modifier = Modifier.weight(1f).height(38.dp).tacticalPress {
+                                onClick = {
                                     triggerFeedback(true)
                                     if (!isConnected) {
-                                        Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
-                                        return@tacticalPress
+                                        Toast.makeText(context, "Shizuku not connected. Please connect Shizuku.", Toast.LENGTH_SHORT).show()
+                                        return@Button
                                     }
                                     scope.launch {
                                         isProcessing = true
-                                        statusText = "[SYSTEM] Restoring Factory Specs..."
+                                        statusText = "[SYSTEM] Restoring Display Resolution & Density..."
                                         GfxBackendManager.globalReset()
-                                        delay(1000)
-                                        statusText += "\n[SUCCESS] Matrix Reset Completed."
+                                        GfxBackendManager.runShell(null, "wm size reset && wm density reset")
+                                        delay(500)
+                                        statusText += "\n[SUCCESS] wm size reset & wm density reset executed."
                                         resScale = 1.0f
                                         prefs.edit().putFloat("ipad_view_scale", 1.0f).apply()
                                         isProcessing = false
-                                        triggerFeedback(false) // Finish sound
+                                        Toast.makeText(context, "Display Resolution & Density Reset to Stock!", Toast.LENGTH_SHORT).show()
+                                        triggerFeedback(false)
                                     }
                                 },
+                                modifier = Modifier.weight(1f).height(38.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray.copy(alpha = 0.5f)),
                                 shape = CutCornerShape(8.dp),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
@@ -358,7 +344,7 @@ fun GfxExtraFeaturesScreen() {
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Text(
-                        text = "SECURE ENGINE PROTOCOL v0.8",
+                        text = "SECURE ENGINE PROTOCOL v9.0",
                         color = Color.White.copy(alpha = 0.6f),
                         style = TerminalTextStyle,
                         fontSize = 8.sp,

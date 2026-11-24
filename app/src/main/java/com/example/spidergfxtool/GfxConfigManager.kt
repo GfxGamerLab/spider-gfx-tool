@@ -16,18 +16,18 @@ import java.util.zip.ZipInputStream
 
 /**
  * Elite GFX Config Manager for Download, Extract, and Shizuku-based Injection.
- * Refactored for v0.7 with External Secure Storage and Shizuku safety.
+ * Updated for GitHub 9.0 release assets with Zip Slip protection and robust validation.
  */
 object GfxConfigManager {
     private const val TAG = "GfxConfigManager"
-    private const val VERSION_FOLDER = "0.7_Version"
+    private const val VERSION_FOLDER = "9.0_Version"
     
     private val client = OkHttpClient()
 
     private val fpsUrls = mapOf(
-        "120FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.7/%20Version/120FPS.zip",
-        "90FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.7/%20Version/90FPS.zip",
-        "60FPS" to "https://raw.githubusercontent.com/GfxGamerLab/gfx-pubg-files/main/0.7/%20Version/60FPS.zip"
+        "120FPS" to "https://raw.githubusercontent.com/GfxGamerLab/spider-gfx-tool/main/9.0/120FPS.zip",
+        "90FPS" to "https://raw.githubusercontent.com/GfxGamerLab/spider-gfx-tool/main/9.0/90FPS.zip",
+        "60FPS" to "https://raw.githubusercontent.com/GfxGamerLab/spider-gfx-tool/main/9.0/60FPS.zip"
     )
 
     data class CommandResult(val success: Boolean, val exitCode: Int, val error: String)
@@ -51,7 +51,7 @@ object GfxConfigManager {
 
     /**
      * Core function to apply FPS configuration.
-     * Handles v0.7 external storage caching, unzipping, and robust Shizuku injection.
+     * Handles GitHub 9.0 external storage caching, secure unzipping, and robust Shizuku injection.
      */
     suspend fun applyFpsConfig(
         fps: String, 
@@ -66,7 +66,7 @@ object GfxConfigManager {
 
         try {
             // 0. PRE-FLIGHT: SHIZUKU CHECK
-            if (!Shizuku.pingBinder() || Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+            if (!SmartEngine.isShizukuReady()) {
                 onProgress("[ERROR] Shizuku engine offline. Please start Shizuku via Wireless Debugging.")
                 return@withContext
             }
@@ -74,80 +74,88 @@ object GfxConfigManager {
             // 1. SELF-CLEANING & VERSION CONTROL
             cleanupOldVersions(context)
 
-            // 2. SETUP STORAGE (getExternalFilesDir to avoid internal permission blocks)
+            // 2. SETUP STORAGE
             val baseDir = File(context.getExternalFilesDir(null), VERSION_FOLDER)
             if (!baseDir.exists()) baseDir.mkdirs()
 
             val zipFile = File(baseDir, "$fps.zip")
-            val extractDir = File(baseDir, "Extracted_Config")
+            val extractDir = File(baseDir, "Extracted_Config_${System.currentTimeMillis()}")
             
-            // 3. SMART CACHE & CORRUPT CHECK
+            // 3. SMART CACHE & VALID SIGNATURE CHECK
             if (zipFile.exists()) {
-                if (zipFile.length() < 1024L) {
-                    onProgress("[CACHE] Corrupt/Empty file detected. Deleting...")
+                if (zipFile.length() < 1024L || !isValidZipFile(zipFile)) {
+                    onProgress("[CACHE] Corrupt or invalid zip detected. Re-downloading...")
                     zipFile.delete()
                 } else {
-                    onProgress("[CACHE] Valid file found. Skipping download.")
+                    onProgress("[CACHE] Valid cached archive found for $fps.")
                 }
             }
 
             if (!zipFile.exists()) {
-                onProgress("> DOWNLOADING v0.7 PAYLOAD...")
+                onProgress("[SYSTEM] Downloading $fps release package from GitHub 9.0...")
                 downloadFile(downloadUrl, zipFile)
                 
-                if (!zipFile.exists() || zipFile.length() == 0L) {
+                if (!zipFile.exists() || zipFile.length() == 0L || !isValidZipFile(zipFile)) {
                     zipFile.delete()
-                    onProgress("> [ERROR] DOWNLOAD FAILED (INVALID URL OR NETWORK)")
+                    onProgress("[ERROR] Download failed or returned invalid binary format.")
                     return@withContext
                 }
             }
 
             // 4. EXTRACTION
-            onProgress("> EXTRACTING CONFIGURATION PAYLOAD...")
+            onProgress("[SYSTEM] Extracting archive securely...")
             if (extractDir.exists()) extractDir.deleteRecursively()
             extractDir.mkdirs()
             unzip(zipFile, extractDir)
 
-            // VALIDATION: ZIP EXTRACTION VALIDATION
+            // VALIDATION: LOCATE 'Files' FOLDER
             val sourceFilesDir = findFilesDirectory(extractDir)
             if (sourceFilesDir == null || !sourceFilesDir.exists()) {
-                onProgress("> [ERROR] 'Files' DIRECTORY NOT FOUND IN ZIP")
+                onProgress("[ERROR] Required 'Files' directory not found in extracted archive.")
+                extractDir.deleteRecursively()
                 return@withContext
             }
             
-            val gameFilesPath = "/storage/emulated/0/Android/data/$targetPackage/files/"
+            val destPath = "/storage/emulated/0/Android/data/$targetPackage/files"
 
-            onProgress("> INJECTING 'Files' INTO TARGET GAME...")
+            onProgress("[SYSTEM] Injecting payload into target package: $targetPackage...")
 
-            // a) Ensure target directory exists via Shizuku shell
-            runShizukuCommand("mkdir -p \"$gameFilesPath\"")
-            
-            // b) Overwrite assets using explicit Shizuku copy command
-            // We copy contents of Files/ into the game's files/ folder
-            val injectCommand = "cp -rf \"${sourceFilesDir.absolutePath}/.\" \"$gameFilesPath\""
-            val injectResult = runShizukuCommand(injectCommand)
+            val command = "mkdir -p '$destPath' && cp -rf '${sourceFilesDir.absolutePath}/.' '$destPath/'"
+            val result = runShizukuCommand(command)
 
-            if (injectResult.success) {
-                onProgress("[SUCCESS] Injection successful! System Overdrive Active.")
+            if (result.success) {
+                onProgress("[SUCCESS] $fps pack successfully injected into $targetPackage!")
                 
                 // 5. FINAL CLEANUP
-                onProgress("> PURGING TEMPORARY FILES...")
+                onProgress("[SYSTEM] Purging temporary staging files...")
                 extractDir.deleteRecursively()
                 
-                showToast(context, "Engine Overdrive Active!")
+                showToast(context, "$fps Successfully Applied to $targetPackage!")
             } else {
-                onProgress("> [ERROR] Shizuku: ${injectResult.error} (Code: ${injectResult.exitCode})")
+                onProgress("[ERROR] Payload injection failed: ${result.error}")
             }
 
         } catch (e: Exception) {
             val errorMsg = e.localizedMessage ?: "Unknown Error"
             Log.e(TAG, "Process Failed", e)
-            onProgress("> [ERROR] Shizuku: $errorMsg")
+            onProgress("[ERROR] GFX Engine Exception: $errorMsg")
         }
     }
 
     private fun findFilesDirectory(dir: File): File? {
-        if (dir.name.equals("Files", ignoreCase = true)) return dir
+        // Case-sensitive check for "Files" first
+        dir.listFiles()?.forEach { file ->
+            if (file.isDirectory && file.name == "Files") {
+                return file
+            }
+        }
+        // Case-insensitive fallback
+        dir.listFiles()?.forEach { file ->
+            if (file.isDirectory && file.name.equals("Files", ignoreCase = true)) {
+                return file
+            }
+        }
+        // Deep search recursively
         dir.listFiles()?.forEach { file ->
             if (file.isDirectory) {
                 val found = findFilesDirectory(file)
@@ -155,6 +163,21 @@ object GfxConfigManager {
             }
         }
         return null
+    }
+
+    private fun isValidZipFile(file: File): Boolean {
+        if (!file.exists() || file.length() < 4L) return false
+        return try {
+            FileInputStream(file).use { fis ->
+                val header = ByteArray(4)
+                if (fis.read(header) == 4) {
+                    // ZIP file header signature: PK\003\004 (0x50, 0x4B, 0x03, 0x04)
+                    header[0] == 0x50.toByte() && header[1] == 0x4B.toByte() && header[2] == 0x03.toByte() && header[3] == 0x04.toByte()
+                } else false
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun downloadFile(url: String, targetFile: File) {
@@ -170,10 +193,16 @@ object GfxConfigManager {
     }
 
     private fun unzip(zipFile: File, targetDir: File) {
+        val destCanonicalPath = targetDir.canonicalPath
         ZipInputStream(FileInputStream(zipFile)).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
                 val newFile = File(targetDir, entry.name)
+                val canonicalPath = newFile.canonicalPath
+                if (!canonicalPath.startsWith(destCanonicalPath + File.separator) && canonicalPath != destCanonicalPath) {
+                    throw IOException("Zip slip vulnerability detected in entry: ${entry.name}")
+                }
+
                 if (entry.isDirectory) {
                     newFile.mkdirs()
                 } else {
@@ -206,11 +235,12 @@ object GfxConfigManager {
             
             val exitCode = process.waitFor()
             val errorStream = process.errorStream.bufferedReader().readText().trim()
+            val sanitizedError = SmartEngine.sanitizeShizukuOutput(errorStream)
             
             if (exitCode != 0) {
-                Log.e(TAG, "Command failed ($exitCode): $errorStream")
+                Log.e(TAG, "Command failed ($exitCode): $sanitizedError")
             }
-            CommandResult(exitCode == 0, exitCode, errorStream)
+            CommandResult(exitCode == 0, exitCode, sanitizedError)
         } catch (e: Exception) {
             Log.e(TAG, "Shizuku Exec Error", e)
             CommandResult(false, -1, e.message ?: "Execution Exception")

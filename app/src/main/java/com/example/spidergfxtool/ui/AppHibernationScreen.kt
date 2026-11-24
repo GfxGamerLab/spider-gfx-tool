@@ -67,7 +67,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
     val apps = remember { mutableStateListOf<AppInfo>() }
     val selectedPackages = remember { mutableStateListOf<String>() }
     var isExecuting by remember { mutableStateOf(false) }
-    var terminalLog by remember { mutableStateOf("IDLE: SYSTEM HIBERNATION v0.8 READY...") }
+    var terminalLog by remember { mutableStateOf("IDLE: SYSTEM HIBERNATION v9.0 READY...") }
     var isLoading by remember { mutableStateOf(true) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "Hibernation")
@@ -144,7 +144,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
             scope.launch {
                 isExecuting = true
                 try {
-                    terminalLog = "[PROCESS] Initiating v0.8 Deep Hibernation..."
+                    terminalLog = "[PROCESS] Initiating v9.0 Deep Hibernation..."
                     val targets = selectedPackages.toList()
                     
                     targets.forEach { pkg ->
@@ -208,7 +208,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "APP SELECTOR ENGINE v0.8",
+                            text = "APP SELECTOR ENGINE v9.0",
                             color = ElectricCyan.copy(alpha = 0.8f),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Black,
@@ -286,7 +286,7 @@ fun AppHibernationScreen(onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "CORE MONITOR v0.8",
+                            text = "CORE MONITOR v9.0",
                             color = NeonCrimson.copy(alpha = 0.8f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
