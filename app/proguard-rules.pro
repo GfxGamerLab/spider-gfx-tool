@@ -1,33 +1,64 @@
 # R8 / ProGuard Rules for Spider GFX Tool v9.0
 
-# Keep App Entry Points & Activities
--keep public class com.example.spidergfxtool.MainActivity { *; }
+# -------------------------------------------------------------------------
+# Keep App Entry Points, ViewModel, Services, Receivers & Internal Package
+# -------------------------------------------------------------------------
 -keep class com.example.spidergfxtool.** { *; }
+-keepclassmembers class com.example.spidergfxtool.** { *; }
+-keepclassmembers class * extends androidx.lifecycle.ViewModel { <init>(...); }
 
-# Shizuku API & Provider
+# Keep App Components
+-keep public class * extends android.app.Activity
+-keep public class * extends android.app.Application
+-keep public class * extends android.app.Service
+-keep public class * extends android.content.BroadcastReceiver
+-keep public class * extends android.content.ContentProvider
+
+# -------------------------------------------------------------------------
+# Shizuku API & Rikka Libraries (CRITICAL: preserve all packages)
+# -------------------------------------------------------------------------
+-keep class rikka.shizuku.** { *; }
+-keep interface rikka.shizuku.** { *; }
 -keep class dev.rikka.shizuku.** { *; }
 -keep interface dev.rikka.shizuku.** { *; }
--keep class moe.shizuku.privileged.api.** { *; }
+-keep class moe.shizuku.** { *; }
+-keep interface moe.shizuku.** { *; }
+-keep class rikka.** { *; }
+-dontwarn rikka.shizuku.**
+-dontwarn dev.rikka.shizuku.**
+-dontwarn moe.shizuku.**
 
-# OkHttp & Okio
+# -------------------------------------------------------------------------
+# OkHttp, Okio, & Network Clients
+# -------------------------------------------------------------------------
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -keep class okhttp3.** { *; }
 -keep interface okhttp3.** { *; }
 
+# -------------------------------------------------------------------------
 # Google AdMob SDK
+# -------------------------------------------------------------------------
 -keep class com.google.android.gms.ads.** { *; }
 -dontwarn com.google.android.gms.ads.**
 
+# -------------------------------------------------------------------------
 # Coil Image Loading
+# -------------------------------------------------------------------------
 -dontwarn coil.**
 -keep class coil.** { *; }
 
-# Jetpack Compose & Material
+# -------------------------------------------------------------------------
+# Jetpack Compose & Material 3
+# -------------------------------------------------------------------------
 -keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
 -keep class androidx.compose.** { *; }
+-keep class androidx.compose.material3.** { *; }
+-keep class androidx.compose.runtime.** { *; }
 
+# -------------------------------------------------------------------------
 # Parcelable and Serializable models
+# -------------------------------------------------------------------------
 -keepclassmembers class * implements android.os.Parcelable {
     public static final android.os.Parcelable$Creator CREATOR;
 }
@@ -39,10 +70,5 @@
     writeObject(java.io.ObjectOutputStream);
 }
 
-# Strip verbose Log calls in release builds to reduce APK footprint and improve performance
--assumenosideeffects class android.util.Log {
-    public static boolean isLoggable(java.lang.String, int);
-    public static int v(...);
-    public static int d(...);
-    public static int i(...);
-}
+# Preserve Log class safely to avoid optimization side-effect issues
+-dontwarn android.util.Log

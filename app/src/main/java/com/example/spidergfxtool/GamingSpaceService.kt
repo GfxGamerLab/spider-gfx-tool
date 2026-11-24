@@ -200,7 +200,11 @@ class GamingSpaceService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         }
         
         layout.addView(composeView)
-        windowManager.addView(layout, params)
+        try {
+            if (android.provider.Settings.canDrawOverlays(this)) {
+                windowManager.addView(layout, params)
+            }
+        } catch (_: Throwable) {}
     }
 
     private fun startAutoBoostLoop() {
@@ -224,31 +228,27 @@ class GamingSpaceService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        // --- WATCHDOG: Master Reset on Shutdown ---
-        serviceScope.launch(Dispatchers.IO) {
-            GfxBackendManager.runShell(null, "dumpsys battery reset")
-            GfxBackendManager.runMasterReset(this@GamingSpaceService)
-        }
-
         // 1. Unregister Watchdog
         try {
             unregisterReceiver(batteryWatchdog)
-        } catch (e: Exception) { }
+        } catch (e: Throwable) { }
 
         // 2. Cleanup Engines
         telemetryViewModel.stopMonitoring()
-        serviceJob.cancel()
         
         // 3. Remove Overlay
         rootView?.let {
-            windowManager.removeView(it)
+            try { windowManager.removeView(it) } catch (_: Throwable) {}
             rootView = null
         }
         
         // 4. Cleanup Lifecycle Owners
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-        store.clear()
+        try {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+            store.clear()
+        } catch (_: Throwable) {}
         
+        serviceJob.cancel()
         super.onDestroy()
     }
 

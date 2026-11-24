@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
-import com.example.spidergfxtool.AdsManager
 import com.example.spidergfxtool.GfxBackendManager
 import com.example.spidergfxtool.SmartEngine
 import com.example.spidergfxtool.SoundEffectsManager
@@ -72,6 +71,14 @@ fun GfxOverdriveDashboardScreen(
     }
     val telemetryState by telemetryViewModel.state
 
+    // Shizuku Real-Time State Observation
+    val shizukuState by GfxBackendManager.shizukuState
+    val (shizukuBadgeColor, shizukuText) = when (shizukuState.status) {
+        com.example.spidergfxtool.ShizukuStatus.ONLINE -> Pair(Color(0xFF00FF66), "SHIZUKU CORE: [ONLINE]")
+        com.example.spidergfxtool.ShizukuStatus.PERMISSION_NEEDED -> Pair(Color(0xFFFF9100), "SHIZUKU CORE: [GRANT PERM]")
+        com.example.spidergfxtool.ShizukuStatus.OFFLINE -> Pair(Color(0xFFFF0000), "SHIZUKU CORE: [OFFLINE]")
+    }
+
     // State for deployed targets
     var deployedTargets by remember {
         mutableStateOf(
@@ -100,44 +107,42 @@ fun GfxOverdriveDashboardScreen(
             showAppPicker = true
             return
         }
-        AdsManager.executeWithAd(context) {
-            isLaunching = true
-            scope.launch(Dispatchers.IO) {
-                try {
-                    launchStepText = "PURGING BACKGROUND PROCESSES & RAM..."
-                    launchProgress = 0.25f
-                    kotlinx.coroutines.delay(250)
+        isLaunching = true
+        scope.launch(Dispatchers.IO) {
+            try {
+                launchStepText = "PURGING BACKGROUND PROCESSES & RAM..."
+                launchProgress = 0.25f
+                kotlinx.coroutines.delay(250)
 
-                    launchStepText = "OPTIMIZING CACHE & GPU ALLOCATION..."
-                    launchProgress = 0.50f
-                    kotlinx.coroutines.delay(250)
+                launchStepText = "OPTIMIZING CACHE & GPU ALLOCATION..."
+                launchProgress = 0.50f
+                kotlinx.coroutines.delay(250)
 
-                    val shizukuReady = SmartEngine.isShizukuReady()
-                    launchStepText = if (shizukuReady) "INJECTING SHIZUKU PRIVILEGED CORE..." else "CONFIGURING NATIVE ENGINE BOOST..."
-                    launchProgress = 0.75f
-                    SmartEngine.executeTurboReactor(context)
-                    kotlinx.coroutines.delay(300)
+                val shizukuReady = SmartEngine.isShizukuReady()
+                launchStepText = if (shizukuReady) "INJECTING SHIZUKU PRIVILEGED CORE..." else "CONFIGURING NATIVE ENGINE BOOST..."
+                launchProgress = 0.75f
+                SmartEngine.executeTurboReactor(context)
+                kotlinx.coroutines.delay(300)
 
-                    launchStepText = "TARGET LOCKED // LAUNCHING GAME..."
-                    launchProgress = 1.0f
-                    kotlinx.coroutines.delay(350)
+                launchStepText = "TARGET LOCKED // LAUNCHING GAME..."
+                launchProgress = 1.0f
+                kotlinx.coroutines.delay(350)
 
-                    withContext(Dispatchers.Main) {
-                        isLaunching = false
-                        val pm = context.packageManager
-                        val launchIntent = pm.getLaunchIntentForPackage(selectedPackageName)
-                        if (launchIntent != null) {
-                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            context.startActivity(launchIntent)
-                        } else {
-                            Toast.makeText(context, "Unable to launch $selectedPackageName. App may not be installed or support direct launch.", Toast.LENGTH_LONG).show()
-                        }
+                withContext(Dispatchers.Main) {
+                    isLaunching = false
+                    val pm = context.packageManager
+                    val launchIntent = pm.getLaunchIntentForPackage(selectedPackageName)
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(launchIntent)
+                    } else {
+                        Toast.makeText(context, "Unable to launch $selectedPackageName. App may not be installed or support direct launch.", Toast.LENGTH_LONG).show()
                     }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        isLaunching = false
-                        Toast.makeText(context, "Error launching target $selectedPackageName: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isLaunching = false
+                    Toast.makeText(context, "Error launching target $selectedPackageName: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -413,17 +418,20 @@ fun GfxOverdriveDashboardScreen(
                     }
 
                     Row(
+                        modifier = Modifier
+                            .clip(CutCornerShape(4.dp))
+                            .clickable { GfxBackendManager.handleCoreLinkClick(context) },
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
-                                .background(Color(0xFF00FF66), CircleShape)
+                                .background(shizukuBadgeColor, CircleShape)
                         )
                         Text(
-                            text = "SHIZUKU CORE: [ONLINE]",
-                            color = Color(0xFF00FF66),
+                            text = shizukuText,
+                            color = shizukuBadgeColor,
                             fontSize = 9.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Black
@@ -877,7 +885,6 @@ fun GfxOverdriveDashboardScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // STATUS BADGES
-                        val isShizukuOnline = remember { SmartEngine.isShizukuReady() }
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -885,13 +892,14 @@ fun GfxOverdriveDashboardScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(CutCornerShape(4.dp))
-                                    .background(if (isShizukuOnline) Color(0xFF003300) else Color(0xFF330000))
-                                    .border(1.dp, if (isShizukuOnline) Color(0xFF00FF66) else Color(0xFFFF0000), CutCornerShape(4.dp))
+                                    .background(shizukuBadgeColor.copy(alpha = 0.15f))
+                                    .border(1.dp, shizukuBadgeColor, CutCornerShape(4.dp))
+                                    .clickable { GfxBackendManager.handleCoreLinkClick(context) }
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = if (isShizukuOnline) "SHIZUKU: [ONLINE]" else "SHIZUKU: [OFFLINE]",
-                                    color = if (isShizukuOnline) Color(0xFF00FF66) else Color(0xFFFF0000),
+                                    text = shizukuText,
+                                    color = shizukuBadgeColor,
                                     fontSize = 7.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold

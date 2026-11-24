@@ -28,11 +28,38 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
 
     <queries>
+        <!-- Target Game Packages -->
+        <package android:name="com.pubg.imobile" />
         <package android:name="com.tencent.ig" />
+        <package android:name="com.pubg.krmobile" />
+        <package android:name="com.vng.pubgmobile" />
+        <package android:name="com.pubg.twmobile" />
+        <package android:name="com.tencent.igfit" />
+
+        <!-- Shizuku, Shizuku-Next & ShizukuPlus Packages -->
+        <package android:name="moe.shizuku.privileged.api" />
+        <package android:name="com.shizuku.next" />
+        <package android:name="moe.shizuku.plus" />
+        <package android:name="com.rikka.shizuku" />
+        <package android:name="io.github.muntashirakon.AppManager" />
+
+        <!-- Shizuku Provider Authorities -->
+        <provider android:authorities="moe.shizuku.privileged.api.shizuku" />
+        <provider android:authorities="com.shizuku.next.shizuku" />
+        <provider android:authorities="moe.shizuku.plus.shizuku" />
         <provider android:authorities="com.sec.badge" />
+
+        <!-- Shizuku Intent Actions -->
+        <intent>
+            <action android:name="moe.shizuku.manager.action.START" />
+        </intent>
+        <intent>
+            <action android:name="rikka.shizuku.BIND" />
+        </intent>
     </queries>
 
     <application
+        android:name=".SpiderApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -47,6 +74,7 @@
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
             android:exported="true"
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />

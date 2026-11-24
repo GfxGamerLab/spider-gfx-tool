@@ -1,6 +1,7 @@
 package com.example.spidergfxtool
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,57 +51,67 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // --- IMMERSIVE FULL-BLEED CUTOUT MODE (DARK THEME & SHORT EDGES) ---
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+        try {
+            // --- IMMERSIVE FULL-BLEED CUTOUT MODE (DARK THEME & SHORT EDGES) ---
+            WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = android.graphics.Color.TRANSPARENT
-        window.setBackgroundDrawableResource(android.R.color.black)
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            window.setBackgroundDrawableResource(android.R.color.black)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
 
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-            hide(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            WindowInsetsControllerCompat(window, window.decorView).apply {
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
+                hide(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } catch (_: Throwable) {
+            // Safe fallback for window decor fit errors
         }
 
         // --- SAFETY BOOT CHECK: RESET SYSTEM STATES ---
-        // Ensures the device clears any "ghost" states (Battery, ZRAM, etc.) on app launch
         CoroutineScope(Dispatchers.IO).launch {
-            GfxBackendManager.runMasterReset(this@MainActivity)
+            try {
+                GfxBackendManager.runMasterReset(this@MainActivity)
+            } catch (_: Throwable) {}
         }
 
         // Ads Initialization
-        AdsManager.init(this)
-        AdsManager.loadInterstitial(this)
+        try {
+            AdsManager.init(this)
+            AdsManager.loadInterstitial(this)
+        } catch (_: Throwable) {}
 
-        val prefs = getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE)
-        SoundEffectsManager.isFeedbackEnabled = prefs.getBoolean("key_mech_feedback", true)
+        try {
+            val prefs = getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE)
+            SoundEffectsManager.isFeedbackEnabled = prefs.getBoolean("key_mech_feedback", true)
+        } catch (_: Throwable) {}
 
         // SAFE INIT: Prevents crash if Shizuku binder is unreachable on certain devices
         try {
             GfxBackendManager.initShizukuListener(this)
             SoundEffectsManager.init(this)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Initialization failed", Toast.LENGTH_LONG).show()
+        } catch (e: Throwable) {
+            Log.e("MainActivity", "Init Error: ", e)
         }
         
-        AudioPlayerManager.playIntroMusic(this)
+        try {
+            AudioPlayerManager.playIntroMusic(this)
+        } catch (_: Throwable) {}
 
         setContent {
-            // Check status on launch and show Toast if disconnected instead of crashing
             LaunchedEffect(Unit) {
                 try {
-                    if (!GfxBackendManager.checkAndRefreshStatus()) {
-                        Toast.makeText(this@MainActivity, "Shizuku not running. Please open Shizuku app.", Toast.LENGTH_SHORT).show()
+                    val state = GfxBackendManager.checkAndRefreshStatus(autoRequestIfBinderAlive = true)
+                    if (state.status == com.example.spidergfxtool.ShizukuStatus.OFFLINE) {
+                        Toast.makeText(this@MainActivity, "Shizuku not running. Open Shizuku or tap CORE LINK.", Toast.LENGTH_SHORT).show()
                     }
-                } catch (e: Exception) {
-                    Toast.makeText(this@MainActivity, "Shizuku Connection Error", Toast.LENGTH_SHORT).show()
+                } catch (_: Throwable) {
                 }
             }
 
@@ -117,29 +128,26 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Safely refresh status when app returns to foreground
         try {
-            GfxBackendManager.checkAndRefreshStatus()
-        } catch (e: Exception) {
-            // Silently handle background status refresh errors
+            GfxBackendManager.checkAndRefreshStatus(autoRequestIfBinderAlive = true)
+        } catch (_: Throwable) {
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Ensure resources are released safely
         try {
-            // FORCE BATTERY RESET ON SHUTDOWN
             CoroutineScope(Dispatchers.IO).launch {
-                GfxBackendManager.runShell(null, "dumpsys battery reset")
-                GfxBackendManager.globalReset() // AUTO-RESET ON APP CLOSE
-                GfxBackendManager.resetOverclockingSafely(this@MainActivity) // REVERT EXPERIMENTAL TWEAKS
-                GfxBackendManager.destroy()
+                try {
+                    GfxBackendManager.runShell(null, "dumpsys battery reset")
+                    GfxBackendManager.globalReset()
+                    GfxBackendManager.resetOverclockingSafely(this@MainActivity)
+                    GfxBackendManager.destroy()
+                } catch (_: Throwable) {}
             }
             AudioPlayerManager.stopAndRelease()
             SoundEffectsManager.release()
-        } catch (e: Exception) {
-            // Ignore destruction errors
+        } catch (_: Throwable) {
         }
     }
 }

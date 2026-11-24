@@ -70,7 +70,13 @@ fun GfxDashboardScreen() {
     val haptic = LocalHapticFeedback.current
     val prefs = remember { context.getSharedPreferences("spider_gfx_prefs", android.content.Context.MODE_PRIVATE) }
     val scope = rememberCoroutineScope()
-    val isConnected = GfxBackendManager.isShizukuConnected.value
+    val shizukuState by GfxBackendManager.shizukuState
+    val (ringColor, statusLabel) = when (shizukuState.status) {
+        com.example.spidergfxtool.ShizukuStatus.ONLINE -> Pair(ElectricCyan, "ONLINE")
+        com.example.spidergfxtool.ShizukuStatus.PERMISSION_NEEDED -> Pair(Color(0xFFFF9100), "NEED PERM")
+        com.example.spidergfxtool.ShizukuStatus.OFFLINE -> Pair(NeonCrimson, "OFFLINE")
+    }
+    val isConnected = shizukuState.isGranted
     var isProcessing by remember { mutableStateOf(value = false) }
     var statusText by remember { mutableStateOf(">> SYSTEM ENGINE READY\n>> WAITING FOR SELECTION...") }
     var selectedFps by remember { mutableStateOf<Int?>(null) }
@@ -190,7 +196,7 @@ fun GfxDashboardScreen() {
                     )
                     
                     Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                        painter = com.example.spidergfxtool.rememberBrandLogoPainter(),
                         contentDescription = "Spider Logo",
                         modifier = Modifier.size(60.dp),
                         contentScale = ContentScale.Fit
@@ -367,7 +373,7 @@ fun GfxDashboardScreen() {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(100.dp)) {
                     Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = radarRotation }) {
                         drawArc(
-                            color = if (isConnected) ElectricCyan else NeonCrimson,
+                            color = ringColor,
                             startAngle = 0f,
                             sweepAngle = 280f,
                             useCenter = false,
@@ -376,19 +382,22 @@ fun GfxDashboardScreen() {
                     }
                     
                     Surface(
-                        modifier = Modifier.size(70.dp).shadow(20.dp, CircleShape, spotColor = if (isConnected) ElectricCyan else NeonCrimson),
+                        modifier = Modifier
+                            .size(70.dp)
+                            .shadow(20.dp, CircleShape, spotColor = ringColor)
+                            .clickable { GfxBackendManager.handleCoreLinkClick(context) },
                         shape = CircleShape,
                         color = Color.Black.copy(alpha = 0.8f),
-                        border = BorderStroke(2.dp, if (isConnected) ElectricCyan else NeonCrimson)
+                        border = BorderStroke(2.dp, ringColor)
                     ) {
                         Column(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = if (isConnected) "ONLINE" else "OFFLINE",
-                                color = if (isConnected) ElectricCyan else NeonCrimson,
-                                fontSize = 12.sp,
+                                text = statusLabel,
+                                color = ringColor,
+                                fontSize = if (statusLabel.length > 6) 10.sp else 12.sp,
                                 fontWeight = FontWeight.Black
                             )
                             Text(

@@ -117,26 +117,7 @@ fun GfxActivationScreen(onActivated: () -> Unit) {
                 visible = isVisible,
                 enter = fadeIn(tween(800)) + scaleIn(tween(800, easing = OvershootInterpolator(1.5f).toEasing()))
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(100.dp) // Adjusted from 90.dp
-                        .shadow(30.dp, CircleShape, spotColor = Color(0xFFFF3131))
-                        .background(
-                            Brush.radialGradient(listOf(Color(0xFFFF3131).copy(alpha = 0.4f), Color.Transparent)), 
-                            shape = CircleShape
-                        )
-                        .border(1.5.dp, Color(0xFFFF3131).copy(alpha = 0.5f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-                        contentDescription = "Logo",
-                        modifier = Modifier
-                            .fillMaxSize(0.9f)
-                            .clip(CircleShape), // Fix: Apply circular clip
-                        contentScale = ContentScale.Crop // Fix: Fill the circle
-                    )
-                }
+                CyberHudEmblem(modifier = Modifier.size(110.dp))
             }
 
             Spacer(modifier = Modifier.height(20.dp))

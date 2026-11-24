@@ -78,132 +78,166 @@ class SystemTelemetryViewModel : ViewModel() {
 
     fun stopMonitoring() {
         monitorJob?.cancel()
-        fpsCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
+        fpsCallback?.let { 
+            try { Choreographer.getInstance().removeFrameCallback(it) } catch (_: Throwable) {}
+        }
+        fpsCallback = null
     }
 
     private fun updateStaticSpecs(context: Context) {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
+        try {
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
 
-        val totalRam = memoryInfo.totalMem.toDouble() / (1024 * 1024 * 1024)
-        
-        val stat = StatFs(context.filesDir.absolutePath)
-        val totalStorage = (stat.blockCountLong * stat.blockSizeLong) / (1024 * 1024 * 1024)
+            val totalRam = memoryInfo.totalMem.toDouble() / (1024 * 1024 * 1024)
+            val parsedTotalRam = try {
+                String.format(Locale.US, "%.2f", totalRam).toDouble()
+            } catch (_: Exception) { 0.0 }
+            
+            val stat = StatFs(context.filesDir.absolutePath)
+            val totalStorage = (stat.blockCountLong * stat.blockSizeLong) / (1024 * 1024 * 1024)
 
-        // Display Specs
-        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val displayMetrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        windowManager.defaultDisplay.getRealMetrics(displayMetrics)
-        val resStr = "${displayMetrics.widthPixels} x ${displayMetrics.heightPixels}"
-        val densityStr = "${displayMetrics.densityDpi} DPI"
-
-        // HDR Support
-        var hdrStr = "Standard"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // Display Specs
+            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val displayMetrics = DisplayMetrics()
             @Suppress("DEPRECATION")
-            val hdrCaps = windowManager.defaultDisplay.hdrCapabilities
-            if (hdrCaps?.supportedHdrTypes?.isNotEmpty() == true) {
-                hdrStr = "HDR Supported"
-            }
-        }
+            windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+            val resStr = "${displayMetrics.widthPixels} x ${displayMetrics.heightPixels}"
+            val densityStr = "${displayMetrics.densityDpi} DPI"
 
-        _state.value = _state.value.copy(
-            totalRamGb = String.format(Locale.US, "%.2f", totalRam).toDouble(),
-            totalStorageGb = totalStorage,
-            resolution = resStr,
-            density = densityStr,
-            hdrStatus = hdrStr
-        )
+            // HDR Support
+            var hdrStr = "Standard"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                @Suppress("DEPRECATION")
+                val hdrCaps = windowManager.defaultDisplay.hdrCapabilities
+                if (hdrCaps?.supportedHdrTypes?.isNotEmpty() == true) {
+                    hdrStr = "HDR Supported"
+                }
+            }
+
+            _state.value = _state.value.copy(
+                totalRamGb = parsedTotalRam,
+                totalStorageGb = totalStorage,
+                resolution = resStr,
+                density = densityStr,
+                hdrStatus = hdrStr
+            )
+        } catch (e: Throwable) {
+            // Safe fallback
+        }
     }
 
     private suspend fun updateDynamicSpecs(context: Context) {
-        // RAM Update
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val memoryInfo = ActivityManager.MemoryInfo()
-        activityManager.getMemoryInfo(memoryInfo)
-        val availRam = memoryInfo.availMem.toDouble() / (1024 * 1024 * 1024)
-        val usedRam = memoryInfo.totalMem - memoryInfo.availMem
-        val usagePercent = (usedRam.toFloat() / memoryInfo.totalMem.toFloat())
+        try {
+            // RAM Update
+            val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memoryInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memoryInfo)
+            val availRam = memoryInfo.availMem.toDouble() / (1024 * 1024 * 1024)
+            val parsedAvailRam = try {
+                String.format(Locale.US, "%.2f", availRam).toDouble()
+            } catch (_: Exception) { 0.0 }
+            
+            val usedRam = memoryInfo.totalMem - memoryInfo.availMem
+            val usagePercent = if (memoryInfo.totalMem > 0) (usedRam.toFloat() / memoryInfo.totalMem.toFloat()) else 0f
 
-        // Storage Update
-        val stat = StatFs(context.filesDir.absolutePath)
-        val freeStorage = (stat.availableBlocksLong * stat.blockSizeLong) / (1024 * 1024 * 1024)
+            // Storage Update
+            val stat = StatFs(context.filesDir.absolutePath)
+            val freeStorage = (stat.availableBlocksLong * stat.blockSizeLong) / (1024 * 1024 * 1024)
 
-        // Battery Update
-        val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-        val temp = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10f
-        
-        val health = batteryStatus?.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: BatteryManager.BATTERY_HEALTH_UNKNOWN
-        val healthStr = when (health) {
-            BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
-            BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
-            BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
-            BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
-            BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failure"
-            BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
-            else -> "Unknown"
-        }
-        
-        val voltage = batteryStatus?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
-        val voltageStr = String.format(Locale.US, "%.1fV", voltage / 1000f)
-        val tech = batteryStatus?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: "Unknown"
+            // Battery Update
+            val batteryStatus: Intent? = try {
+                context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            } catch (_: Exception) { null }
 
-        // Thermal Status
-        var thermalStr = "Normal"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-            val status = powerManager.currentThermalStatus
-            thermalStr = when (status) {
-                PowerManager.THERMAL_STATUS_NONE -> "Normal"
-                PowerManager.THERMAL_STATUS_LIGHT -> "Moderate"
-                PowerManager.THERMAL_STATUS_MODERATE -> "Severe"
-                PowerManager.THERMAL_STATUS_SEVERE -> "Critical"
-                PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
-                PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
-                else -> "Normal"
+            val level = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val temp = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0) / 10f
+            
+            val health = batteryStatus?.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN) ?: BatteryManager.BATTERY_HEALTH_UNKNOWN
+            val healthStr = when (health) {
+                BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+                BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+                BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+                BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+                BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Failure"
+                BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+                else -> "Unknown"
             }
-        }
+            
+            val voltage = batteryStatus?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
+            val voltageStr = String.format(Locale.US, "%.1fV", voltage / 1000f)
+            val tech = batteryStatus?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: "Unknown"
 
-        // Ping Update (real ping with stable fallback)
-        val rawPing = getPingLatency()
-        val ping = if (rawPing > 0) rawPing else 24
+            // Thermal Status
+            var thermalStr = "Normal"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                val status = powerManager.currentThermalStatus
+                thermalStr = when (status) {
+                    PowerManager.THERMAL_STATUS_NONE -> "Normal"
+                    PowerManager.THERMAL_STATUS_LIGHT -> "Moderate"
+                    PowerManager.THERMAL_STATUS_MODERATE -> "Severe"
+                    PowerManager.THERMAL_STATUS_SEVERE -> "Critical"
+                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
+                    else -> "Normal"
+                }
+            }
 
-        // CPU Stable Update (hovering realistically between 35%-45%, fluctuating by 1-3%)
-        currentCpuUsage = (currentCpuUsage + ((Math.random() * 5).toInt() - 2)).coerceIn(35, 45)
+            // Ping Update (real ping with stable fallback)
+            val rawPing = getPingLatency()
+            val ping = if (rawPing > 0) rawPing else 24
 
-        withContext(Dispatchers.Main) {
-            _state.value = _state.value.copy(
-                availRamGb = String.format(Locale.US, "%.2f", availRam).toDouble(),
-                ramUsagePercent = usagePercent,
-                freeStorageGb = freeStorage,
-                batteryPercent = level,
-                batteryTemp = temp,
-                batteryHealth = healthStr,
-                batteryVoltage = voltageStr,
-                batteryTech = tech,
-                thermalStatus = thermalStr,
-                livePingMs = ping,
-                cpuUsagePercent = currentCpuUsage
-            )
+            // CPU Stable Update (hovering realistically between 35%-45%, fluctuating by 1-3%)
+            currentCpuUsage = (currentCpuUsage + ((Math.random() * 5).toInt() - 2)).coerceIn(35, 45)
+
+            withContext(Dispatchers.Main) {
+                _state.value = _state.value.copy(
+                    availRamGb = parsedAvailRam,
+                    ramUsagePercent = usagePercent,
+                    freeStorageGb = freeStorage,
+                    batteryPercent = level,
+                    batteryTemp = temp,
+                    batteryHealth = healthStr,
+                    batteryVoltage = voltageStr,
+                    batteryTech = tech,
+                    thermalStatus = thermalStr,
+                    livePingMs = ping,
+                    cpuUsagePercent = currentCpuUsage
+                )
+            }
+        } catch (_: Throwable) {
+            // Safe fallback
         }
     }
 
     private fun startFpsCounter() {
+        if (fpsCallback != null) return
+        var accumulatedFrames = 0
+        var windowStartTime = System.currentTimeMillis()
+
         fpsCallback = object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
-                if (lastFrameTimeNanos != 0L) {
-                    val diff = frameTimeNanos - lastFrameTimeNanos
-                    val fps = (1_000_000_000L / diff).toInt()
-                    _state.value = _state.value.copy(liveFps = fps.coerceIn(0, 144))
+                accumulatedFrames++
+                val now = System.currentTimeMillis()
+                val elapsed = now - windowStartTime
+                if (elapsed >= 500L) {
+                    val calculatedFps = ((accumulatedFrames * 1000L) / elapsed).toInt().coerceIn(0, 144)
+                    if (_state.value.liveFps != calculatedFps) {
+                        _state.value = _state.value.copy(liveFps = calculatedFps)
+                    }
+                    accumulatedFrames = 0
+                    windowStartTime = now
                 }
-                lastFrameTimeNanos = frameTimeNanos
-                Choreographer.getInstance().postFrameCallback(this)
+                fpsCallback?.let {
+                    try { Choreographer.getInstance().postFrameCallback(it) } catch (_: Throwable) {}
+                }
             }
         }
-        Choreographer.getInstance().postFrameCallback(fpsCallback!!)
+        try {
+            Choreographer.getInstance().postFrameCallback(fpsCallback!!)
+        } catch (_: Throwable) {}
     }
 
     private fun getPingLatency(): Int {

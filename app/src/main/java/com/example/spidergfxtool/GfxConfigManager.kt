@@ -217,6 +217,9 @@ object GfxConfigManager {
 
     private fun runShizukuCommand(command: String): CommandResult {
         return try {
+            if (!SmartEngine.isShizukuReady()) {
+                return CommandResult(false, -1, "Shizuku engine offline")
+            }
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
             val newProcessMethod = shizukuClass.getDeclaredMethod(
                 "newProcess",
@@ -241,7 +244,7 @@ object GfxConfigManager {
                 Log.e(TAG, "Command failed ($exitCode): $sanitizedError")
             }
             CommandResult(exitCode == 0, exitCode, sanitizedError)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Shizuku Exec Error", e)
             CommandResult(false, -1, e.message ?: "Execution Exception")
         }

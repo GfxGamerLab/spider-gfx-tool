@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.spidergfxtool.R
+import com.example.spidergfxtool.ui.components.CyberHudEmblem
 import kotlinx.coroutines.delay
 
 @Composable
@@ -87,7 +88,7 @@ fun SpiderSplashScreen(onAnimationComplete: () -> Unit) {
                         .background(Color(0xFFFF3131).copy(alpha = 0.3f), CircleShape)
                 )
                 
-                SpiderLogo(
+                CyberHudEmblem(
                     modifier = Modifier.size(220.dp).scale(scale),
                     glowIntensity = glowAlpha
                 )
@@ -163,44 +164,7 @@ fun CyberWaveform(modifier: Modifier, color: Color) {
     }
 }
 
-@Composable
-fun SpiderLogo(modifier: Modifier = Modifier, glowIntensity: Float) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        // Pulsating Neon Ring
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(
-                color = Color(0xFFFF3131).copy(alpha = 0.2f * glowIntensity),
-                radius = size.minDimension / 2,
-                style = Stroke(width = 8f)
-            )
-            drawCircle(
-                color = Color(0xFFFF3131).copy(alpha = 0.5f * glowIntensity),
-                radius = size.minDimension / 2.1f,
-                style = Stroke(width = 2f)
-            )
-        }
 
-        // Inner logo glow
-        Box(
-            modifier = Modifier
-                .fillMaxSize(0.7f)
-                .blur(15.dp)
-                .background(Color(0xFFFF3131).copy(alpha = 0.3f * glowIntensity), CircleShape)
-        )
-        
-        Image(
-            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
-            contentDescription = "Spider Logo",
-            modifier = Modifier
-                .fillMaxSize(0.9f)
-                .clip(CircleShape), // Fix: Apply circular clip
-            contentScale = ContentScale.Crop // Fix: Fill the circle
-        )
-    }
-}
 
 @Composable
 fun WebPatternBackground(modifier: Modifier = Modifier) {

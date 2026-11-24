@@ -1,6 +1,7 @@
 package com.example.spidergfxtool
 
 import android.content.Context
+import android.widget.Toast
 import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
@@ -11,14 +12,40 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipInputStream
 
+enum class ShizukuStatus {
+    OFFLINE,            // Shizuku Service OFF / Not Running (binder dead)
+    PERMISSION_NEEDED,  // Shizuku Service ON — Permission Required (binder alive, permission not granted yet)
+    ONLINE              // Shizuku ONLINE / GRANTED (binder alive + permission granted)
+}
+
+data class ShizukuStateInfo(
+    val status: ShizukuStatus = ShizukuStatus.OFFLINE,
+    val uid: Int = -1,
+    val privilegeName: String = "Service OFF",
+    val isAlive: Boolean = false,
+    val isGranted: Boolean = false,
+    val versionCode: Int = 0
+)
+
 /**
  * Manager class for handling GFX tool backend logic including Shizuku checks,
  * file downloading, zip extraction, and shell execution.
  */
 object GfxBackendManager {
 
-    // UI STATE: This tells your UI if Shizuku is ready
+    // CENTRAL REAL-TIME SHIZUKU STATE
+    val shizukuState = mutableStateOf(ShizukuStateInfo())
+
+    // UI STATE: Backward compatible boolean flag
     val isShizukuConnected = mutableStateOf(false)
+
+    val shizukuManagerPackages = listOf(
+        "moe.shizuku.privileged.api", // Official Shizuku & Shizuku-Next
+        "com.shizuku.next",           // Shizuku-Next alternate package
+        "moe.shizuku.plus",           // ShizukuPlus / Shizuku+
+        "com.rikka.shizuku",          // Rikka Shizuku legacy package
+        "io.github.muntashirakon.AppManager" // AppManager with built-in Shizuku
+    )
 
     val pubgPackages = listOf(
         "com.pubg.imobile",
@@ -140,16 +167,22 @@ object GfxBackendManager {
      */
     suspend fun runShellForGame(context: Context, commandTemplate: String): Result<String> = runShell(context, commandTemplate)
 
+    private var isListenerRegistered = false
+
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
-        checkAndRefreshStatus()
+        Log.d("GFX_SHIZUKU", "Binder received from Shizuku service")
+        checkAndRefreshStatus(autoRequestIfBinderAlive = true)
     }
 
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        Log.d("GFX_SHIZUKU", "Binder dead from Shizuku service")
+        shizukuState.value = ShizukuStateInfo(status = ShizukuStatus.OFFLINE)
         isShizukuConnected.value = false
         globalReset() // AUTO-RESET IF SHIZUKU DIES
     }
 
-    private val permissionResultListener = Shizuku.OnRequestPermissionResultListener { _, _ ->
+    private val permissionResultListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        Log.d("GFX_SHIZUKU", "Permission result code=$requestCode, result=$grantResult")
         checkAndRefreshStatus()
     }
 
@@ -158,12 +191,14 @@ object GfxBackendManager {
      */
     fun initShizukuListener(context: Context) {
         try {
-            Shizuku.addBinderReceivedListener(binderReceivedListener)
-            Shizuku.addBinderDeadListener(binderDeadListener)
-            Shizuku.addRequestPermissionResultListener(permissionResultListener)
-            
-            checkAndRefreshStatus()
-        } catch (e: Exception) {
+            if (!isListenerRegistered) {
+                Shizuku.addBinderReceivedListener(binderReceivedListener)
+                Shizuku.addBinderDeadListener(binderDeadListener)
+                Shizuku.addRequestPermissionResultListener(permissionResultListener)
+                isListenerRegistered = true
+            }
+            checkAndRefreshStatus(autoRequestIfBinderAlive = true)
+        } catch (e: Throwable) {
             Log.e("GFX_SHIZUKU", "Init Error: ", e)
         }
     }
@@ -173,35 +208,168 @@ object GfxBackendManager {
      */
     fun destroy() {
         try {
-            Shizuku.removeBinderReceivedListener(binderReceivedListener)
-            Shizuku.removeBinderDeadListener(binderDeadListener)
-            Shizuku.removeRequestPermissionResultListener(permissionResultListener)
-        } catch (e: Exception) {
+            if (isListenerRegistered) {
+                Shizuku.removeBinderReceivedListener(binderReceivedListener)
+                Shizuku.removeBinderDeadListener(binderDeadListener)
+                Shizuku.removeRequestPermissionResultListener(permissionResultListener)
+                isListenerRegistered = false
+            }
+        } catch (e: Throwable) {
             Log.e("GFX_SHIZUKU", "Destroy Error: ", e)
         }
     }
 
     /**
-     * Checks Shizuku status manually and updates the state.
+     * Central real-time Shizuku status evaluation distinguishing OFFLINE, PERMISSION_NEEDED, and ONLINE.
      */
-    fun checkAndRefreshStatus(): Boolean {
+    fun checkAndRefreshStatus(autoRequestIfBinderAlive: Boolean = false): ShizukuStateInfo {
         return try {
             if (Shizuku.pingBinder()) {
-                if (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                val isGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (isGranted) {
+                    val uid = try { Shizuku.getUid() } catch (_: Throwable) { -1 }
+                    val ver = try { Shizuku.getVersion() } catch (_: Throwable) { 0 }
+                    val privilege = when (uid) {
+                        0 -> "Root (UID 0)"
+                        2000 -> "ADB Shell (UID 2000)"
+                        -1 -> "Granted"
+                        else -> "Privileged (UID $uid)"
+                    }
+                    val info = ShizukuStateInfo(
+                        status = ShizukuStatus.ONLINE,
+                        uid = uid,
+                        privilegeName = privilege,
+                        isAlive = true,
+                        isGranted = true,
+                        versionCode = ver
+                    )
+                    shizukuState.value = info
                     isShizukuConnected.value = true
-                    true
+                    info
                 } else {
+                    val info = ShizukuStateInfo(
+                        status = ShizukuStatus.PERMISSION_NEEDED,
+                        uid = -1,
+                        privilegeName = "Permission Required",
+                        isAlive = true,
+                        isGranted = false
+                    )
+                    shizukuState.value = info
                     isShizukuConnected.value = false
-                    Shizuku.requestPermission(1001)
-                    false
+                    if (autoRequestIfBinderAlive) {
+                        requestShizukuPermission()
+                    }
+                    info
                 }
             } else {
+                val info = ShizukuStateInfo(
+                    status = ShizukuStatus.OFFLINE,
+                    uid = -1,
+                    privilegeName = "Service OFF",
+                    isAlive = false,
+                    isGranted = false
+                )
+                shizukuState.value = info
                 isShizukuConnected.value = false
+                info
+            }
+        } catch (e: Throwable) {
+            val info = ShizukuStateInfo(
+                status = ShizukuStatus.OFFLINE,
+                uid = -1,
+                privilegeName = "Service OFF",
+                isAlive = false,
+                isGranted = false
+            )
+            shizukuState.value = info
+            isShizukuConnected.value = false
+            info
+        }
+    }
+
+    /**
+     * Explicitly requests Shizuku permission when triggered by user action or auto-prompt.
+     */
+    fun requestShizukuPermission(requestCode: Int = 1001): Boolean {
+        return try {
+            if (Shizuku.pingBinder()) {
+                if (Shizuku.checkSelfPermission() != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    Shizuku.requestPermission(requestCode)
+                }
+                true
+            } else {
                 false
             }
-        } catch (e: Exception) {
-            isShizukuConnected.value = false
+        } catch (e: Throwable) {
+            Log.e("GFX_SHIZUKU", "Permission Request Error: ", e)
             false
+        }
+    }
+
+    /**
+     * Opens installed Shizuku, Shizuku-Next, or ShizukuPlus application.
+     */
+    fun openShizukuApp(context: Context): Boolean {
+        val pm = context.packageManager
+        for (pkg in shizukuManagerPackages) {
+            try {
+                val intent = pm.getLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                    return true
+                }
+            } catch (_: Throwable) {}
+        }
+        try {
+            val actionIntent = android.content.Intent("moe.shizuku.manager.action.START")
+            actionIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(actionIntent)
+            return true
+        } catch (_: Throwable) {}
+        return false
+    }
+
+    /**
+     * Handles clicking the CORE LINK badge: checks Shizuku binder and requests permission or launches Shizuku app.
+     */
+    fun handleCoreLinkClick(context: Context) {
+        try {
+            val state = checkAndRefreshStatus(autoRequestIfBinderAlive = false)
+            when (state.status) {
+                ShizukuStatus.ONLINE -> {
+                    Toast.makeText(
+                        context,
+                        "Shizuku Core is ONLINE (${state.privilegeName}).",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                ShizukuStatus.PERMISSION_NEEDED -> {
+                    Toast.makeText(
+                        context,
+                        "Shizuku service detected! Requesting permission...",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    requestShizukuPermission()
+                }
+                ShizukuStatus.OFFLINE -> {
+                    Toast.makeText(
+                        context,
+                        "Shizuku service offline. Launching Shizuku app...",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    val opened = openShizukuApp(context)
+                    if (!opened) {
+                        Toast.makeText(
+                            context,
+                            "Shizuku app not found. Please install Shizuku, Shizuku-Next, or ShizukuPlus.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        } catch (e: Throwable) {
+            Toast.makeText(context, "Shizuku check error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

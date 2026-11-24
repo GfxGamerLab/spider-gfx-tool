@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.example.spidergfxtool.GfxBackendManager
+import com.example.spidergfxtool.SmartEngine
 import com.example.spidergfxtool.SoundEffectsManager
 import com.example.spidergfxtool.ui.theme.TerminalTextStyle
 import com.example.spidergfxtool.ui.components.*
@@ -61,7 +62,6 @@ fun AppHibernationScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-    val isConnected = GfxBackendManager.isShizukuConnected.value
 
     // Use SnapshotStateList for real-time UI updates
     val apps = remember { mutableStateListOf<AppInfo>() }
@@ -138,8 +138,8 @@ fun AppHibernationScreen(onBack: () -> Unit) {
     }
 
     val onHibernate = {
-        if (!isConnected) {
-            Toast.makeText(context, "Connect Shizuku first", Toast.LENGTH_SHORT).show()
+        if (!SmartEngine.isShizukuReady()) {
+            GfxBackendManager.handleCoreLinkClick(context)
         } else {
             scope.launch {
                 isExecuting = true

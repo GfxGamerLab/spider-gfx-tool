@@ -106,11 +106,18 @@ class RealTimeHudService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         OverlayStateManager.setHudActive(true)
         
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+            stopSelf()
+            return
+        }
+
         showHud()
         setupTrashView()
         
-        Choreographer.getInstance().postFrameCallback(frameCallback)
-        registerReceiver(thermalReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        try {
+            Choreographer.getInstance().postFrameCallback(frameCallback)
+            registerReceiver(thermalReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        } catch (_: Throwable) {}
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -163,7 +170,7 @@ class RealTimeHudService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                         MotionEvent.ACTION_MOVE -> {
                             params.x = initialX + (event.rawX - initialTouchX).toInt()
                             params.y = initialY + (event.rawY - initialTouchY).toInt()
-                            windowManager.updateViewLayout(hudView, params)
+                            try { windowManager.updateViewLayout(hudView, params) } catch (_: Throwable) {}
                             updateTrashAnimation(event.rawX, event.rawY)
                             return true
                         }
@@ -180,7 +187,7 @@ class RealTimeHudService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
                 }
             })
         }
-        windowManager.addView(hudView, params)
+        try { windowManager.addView(hudView, params) } catch (_: Throwable) { stopSelf() }
     }
 
     private fun setupTrashView() {
@@ -188,7 +195,7 @@ class RealTimeHudService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
             setImageResource(R.drawable.ic_trash_zone)
             visibility = View.GONE
         }
-        windowManager.addView(trashView, trashParams)
+        try { windowManager.addView(trashView, trashParams) } catch (_: Throwable) {}
     }
 
     private fun updateTrashAnimation(rawX: Float, rawY: Float) {
@@ -219,12 +226,14 @@ class RealTimeHudService : Service(), LifecycleOwner, ViewModelStoreOwner, Saved
 
     override fun onDestroy() {
         OverlayStateManager.setHudActive(false)
-        Choreographer.getInstance().removeFrameCallback(frameCallback)
-        try { unregisterReceiver(thermalReceiver) } catch (e: Exception) {}
-        hudView?.let { windowManager.removeView(it) }
-        trashView?.let { windowManager.removeView(it) }
-        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
-        store.clear()
+        try { Choreographer.getInstance().removeFrameCallback(frameCallback) } catch (_: Throwable) {}
+        try { unregisterReceiver(thermalReceiver) } catch (_: Throwable) {}
+        hudView?.let { try { windowManager.removeView(it) } catch (_: Throwable) {} }
+        trashView?.let { try { windowManager.removeView(it) } catch (_: Throwable) {} }
+        try {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+            store.clear()
+        } catch (_: Throwable) {}
         super.onDestroy()
     }
 }

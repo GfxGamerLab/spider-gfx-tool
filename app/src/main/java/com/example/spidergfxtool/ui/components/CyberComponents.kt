@@ -744,3 +744,82 @@ fun SocialFooterButton(
         }
     }
 }
+
+@Composable
+fun CyberHudEmblem(modifier: Modifier = Modifier, glowIntensity: Float = 1f) {
+    val infiniteTransition = rememberInfiniteTransition(label = "HudEmblem")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(10000, easing = LinearEasing), RepeatMode.Restart),
+        label = "Rotation"
+    )
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = rotation }) {
+            val center = Offset(size.width / 2, size.height / 2)
+            val radius = size.minDimension / 2 * 0.9f
+
+            // Outer glowing ring
+            drawCircle(
+                color = NeonCrimson.copy(alpha = 0.5f * glowIntensity),
+                radius = radius,
+                style = Stroke(width = 6f)
+            )
+
+            // Inner cyan precision ring
+            drawCircle(
+                color = ElectricCyan.copy(alpha = 0.7f * glowIntensity),
+                radius = radius * 0.75f,
+                style = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f))
+            )
+
+            // Precision ticks
+            for (i in 0 until 8) {
+                val angle = (i * 45).toDouble() * Math.PI / 180
+                val startX = center.x + (radius * 0.85f * Math.cos(angle)).toFloat()
+                val startY = center.y + (radius * 0.85f * Math.sin(angle)).toFloat()
+                val endX = center.x + (radius * 0.95f * Math.cos(angle)).toFloat()
+                val endY = center.y + (radius * 0.95f * Math.sin(angle)).toFloat()
+                drawLine(
+                    color = NeonCrimson,
+                    start = Offset(startX, startY),
+                    end = Offset(endX, endY),
+                    strokeWidth = 3f
+                )
+            }
+        }
+
+        // Counter-rotating inner HUD core
+        Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = -rotation * 1.5f }) {
+            val center = Offset(size.width / 2, size.height / 2)
+            val radius = size.minDimension / 2 * 0.5f
+
+            // Hexagonal geometric core
+            val path = Path().apply {
+                for (i in 0 until 6) {
+                    val angle = (i * 60).toDouble() * Math.PI / 180
+                    val x = center.x + (radius * Math.cos(angle)).toFloat()
+                    val y = center.y + (radius * Math.sin(angle)).toFloat()
+                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
+            }
+            drawPath(path, color = ElectricCyan.copy(alpha = 0.6f), style = Stroke(width = 2f))
+
+            // Crosshair lines
+            drawLine(NeonCrimson, Offset(center.x - radius, center.y), Offset(center.x + radius, center.y), 2f)
+            drawLine(NeonCrimson, Offset(center.x, center.y - radius), Offset(center.x, center.y + radius), 2f)
+        }
+
+        // Center glowing core dot
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .background(NeonCrimson, CircleShape)
+                .border(2.dp, ElectricCyan, CircleShape)
+        )
+    }
+}

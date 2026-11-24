@@ -40,6 +40,12 @@ class CrosshairService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         OverlayStateManager.setCrosshairActive(true)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+            stopSelf()
+            return
+        }
+
         showCrosshair()
         setupTrashView()
     }
@@ -80,7 +86,7 @@ class CrosshairService : Service() {
                         MotionEvent.ACTION_MOVE -> {
                             params.x = initialX + (event.rawX - initialTouchX).toInt()
                             params.y = initialY + (event.rawY - initialTouchY).toInt()
-                            windowManager.updateViewLayout(crosshairView, params)
+                            try { windowManager.updateViewLayout(crosshairView, params) } catch (_: Throwable) {}
                             
                             updateTrashAnimation(event.rawX, event.rawY)
                             return true
@@ -98,7 +104,7 @@ class CrosshairService : Service() {
                 }
             })
         }
-        windowManager.addView(crosshairView, params)
+        try { windowManager.addView(crosshairView, params) } catch (_: Throwable) { stopSelf() }
     }
 
     private fun setupTrashView() {
@@ -106,7 +112,7 @@ class CrosshairService : Service() {
             setImageResource(R.drawable.ic_trash_zone)
             visibility = View.GONE
         }
-        windowManager.addView(trashView, trashParams)
+        try { windowManager.addView(trashView, trashParams) } catch (_: Throwable) {}
     }
 
     private fun updateTrashAnimation(rawX: Float, rawY: Float) {
@@ -129,8 +135,8 @@ class CrosshairService : Service() {
 
     override fun onDestroy() {
         OverlayStateManager.setCrosshairActive(false)
-        crosshairView?.let { windowManager.removeView(it) }
-        trashView?.let { windowManager.removeView(it) }
+        crosshairView?.let { try { windowManager.removeView(it) } catch (_: Throwable) {} }
+        trashView?.let { try { windowManager.removeView(it) } catch (_: Throwable) {} }
         super.onDestroy()
     }
 }

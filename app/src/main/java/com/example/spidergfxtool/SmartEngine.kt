@@ -42,7 +42,7 @@ object SmartEngine {
         return try {
             Shizuku.pingBinder() &&
             (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             false
         }
     }
@@ -56,13 +56,13 @@ object SmartEngine {
                 if (Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     true
                 } else {
-                    Shizuku.requestPermission(1001)
+                    GfxBackendManager.requestShizukuPermission()
                     false
                 }
             } else {
                 false
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             false
         }
     }
@@ -117,7 +117,7 @@ object SmartEngine {
             val stdout = process.inputStream.bufferedReader().readText().trim()
             process.waitFor()
             sanitizeShizukuOutput(stdout)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Shizuku safe execution: $command | ${e.message}")
             "shizuku_offline"
         }
@@ -137,7 +137,7 @@ object SmartEngine {
             } else {
                 Result.success(output)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "Safe raw execution: $command | ${e.message}")
             Result.failure(e)
         }
@@ -225,7 +225,12 @@ object SmartEngine {
         val tweakName = featureName
         if (enable) {
             if (!isShizukuReady()) {
-                logLines.add("[WARN / OFFLINE] Shizuku is disconnected. $tweakName could not be applied at system level.")
+                if (Shizuku.pingBinder()) {
+                    GfxBackendManager.requestShizukuPermission()
+                    logLines.add("[WARN / PERMISSION REQUIRED] Shizuku service detected! Requesting permission prompt...")
+                } else {
+                    logLines.add("[WARN / OFFLINE] Shizuku service is offline. $tweakName could not be applied at system level.")
+                }
                 return SmartResult(status = TweakStatus.FAILED, logMessage = logLines.joinToString("\n"))
             }
             logLines.add("[SYSTEM] Applying $tweakName...")

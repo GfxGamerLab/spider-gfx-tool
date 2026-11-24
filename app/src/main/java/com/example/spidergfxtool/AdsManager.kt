@@ -26,7 +26,11 @@ object AdsManager {
     private var interstitialAd: InterstitialAd? = null
 
     fun init(context: Context) {
-        MobileAds.initialize(context) {}
+        try {
+            MobileAds.initialize(context) {}
+        } catch (e: Throwable) {
+            Log.e(TAG, "AdMob Init Exception", e)
+        }
     }
 
     /**
@@ -43,13 +47,17 @@ object AdsManager {
                 modifier = Modifier.fillMaxWidth(),
                 factory = { context ->
                     AdView(context).apply {
-                        setAdSize(AdSize.BANNER)
-                        adUnitId = context.getString(R.string.banner_ad_unit_id)
-                        loadAd(AdRequest.Builder().build())
-                        adListener = object : AdListener() {
-                            override fun onAdFailedToLoad(error: LoadAdError) {
-                                Log.e(TAG, "Banner failed to load: ${error.message}")
+                        try {
+                            setAdSize(AdSize.BANNER)
+                            adUnitId = context.getString(R.string.banner_ad_unit_id)
+                            loadAd(AdRequest.Builder().build())
+                            adListener = object : AdListener() {
+                                override fun onAdFailedToLoad(error: LoadAdError) {
+                                    Log.e(TAG, "Banner failed to load: ${error.message}")
+                                }
                             }
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "Banner creation exception", e)
                         }
                     }
                 }
@@ -61,23 +69,28 @@ object AdsManager {
      * Pre-loads an Interstitial Ad using production ID.
      */
     fun loadInterstitial(context: Context) {
-        val adRequest = AdRequest.Builder().build()
-        InterstitialAd.load(
-            context,
-            context.getString(R.string.interstitial_ad_unit_id),
-            adRequest,
-            object : InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: InterstitialAd) {
-                    interstitialAd = ad
-                    Log.d(TAG, "Interstitial Ad Loaded")
-                }
+        try {
+            val adRequest = AdRequest.Builder().build()
+            InterstitialAd.load(
+                context,
+                context.getString(R.string.interstitial_ad_unit_id),
+                adRequest,
+                object : InterstitialAdLoadCallback() {
+                    override fun onAdLoaded(ad: InterstitialAd) {
+                        interstitialAd = ad
+                        Log.d(TAG, "Interstitial Ad Loaded")
+                    }
 
-                override fun onAdFailedToLoad(error: LoadAdError) {
-                    interstitialAd = null
-                    Log.e(TAG, "Interstitial failed to load: ${error.message}")
+                    override fun onAdFailedToLoad(error: LoadAdError) {
+                        interstitialAd = null
+                        Log.e(TAG, "Interstitial failed to load: ${error.message}")
+                    }
                 }
-            }
-        )
+            )
+        } catch (e: Throwable) {
+            interstitialAd = null
+            Log.e(TAG, "Load Interstitial Exception", e)
+        }
     }
 
     /**
@@ -102,25 +115,6 @@ object AdsManager {
             // Ad not ready, execute action immediately
             onAdDismissed()
             loadInterstitial(activity) // Try loading for next time
-        }
-    }
-
-    /**
-     * Executes the action first, then opens the smart Ad link in the external browser.
-     */
-    fun executeWithAd(context: Context, action: () -> Unit) {
-        val adUrl = "https://hankperryeugene.com/de7j79ut?key=4dd3674d2c81383319cd6dd656477690"
-        
-        // 1. Execute the tool's intended action first (so it's ready when they return)
-        action.invoke()
-        
-        // 2. Open the Ad in the external browser
-        try {
-            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(adUrl))
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 }
