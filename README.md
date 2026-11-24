@@ -52,27 +52,27 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/01-hub-command-center.jpg" alt="Spider GFX Tool Hub – command center, target lock and launch screen" width="100%"><br>
+      <img src="docs/01-hub-command-center.jpg" alt="Spider GFX Tool Hub – command center, target lock and launch screen" width="100%"><br>
       <sub><b>Hub</b> — Target lock & one-tap launch</sub>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/02-system-engine.jpg" alt="Spider GFX Tool System Engine – system, game, network optimization and Auto-DNS" width="100%"><br>
+      <img src="docs/02-system-engine.jpg" alt="Spider GFX Tool System Engine – system, game, network optimization and Auto-DNS" width="100%"><br>
       <sub><b>System Engine</b> — Boost Reactor & Auto-DNS</sub>
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/03-gfx-tool-fps-selector.jpg" alt="Spider GFX Tool FPS selector – apply 60, 90 and 120 FPS for BGMI, Global, KR, VN, TW" width="100%"><br>
+      <img src="docs/03-gfx-tool-fps-selector.jpg" alt="Spider GFX Tool FPS selector – apply 60, 90 and 120 FPS for BGMI, Global, KR, VN, TW" width="100%"><br>
       <sub><b>GFX Tool</b> — 60 / 90 / 120 FPS per region</sub>
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/04-extra-features-ipad-view.jpg" alt="Spider GFX Tool Extra Features – iPad View and aspect ratio scale" width="100%"><br>
+      <img src="docs/04-extra-features-ipad-view.jpg" alt="Spider GFX Tool Extra Features – iPad View and aspect ratio scale" width="100%"><br>
       <sub><b>Extra Features</b> — iPad View & aspect ratio</sub>
     </td>
   </tr>
   <tr>
     <td align="center" colspan="2">
-      <img src="docs/screenshots/05-app-hibernation.jpg" alt="Spider GFX Tool Hibernation – select background apps and free up RAM before gaming" width="60%"><br>
+      <img src="docs/05-app-hibernation.jpg" alt="Spider GFX Tool Hibernation – select background apps and free up RAM before gaming" width="60%"><br>
       <sub><b>Hibernation</b> — Free RAM by stopping background apps</sub>
     </td>
   </tr>
